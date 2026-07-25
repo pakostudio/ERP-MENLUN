@@ -1,0 +1,146 @@
+<script>
+/* SMLOGCAPTURAV1: botones + Nuevo pedido / + Nuevo bloqueo para Flujo Operativo y Bloqueos, con notificacion por correo a Guillermo (Logistica) */
+(function(){
+  var ROLES_PERMITIDOS = ['logistica','direccion','admin_sistemas'];
+  function gateOk(){
+    return typeof currentRole !== 'undefined' && currentRole && ROLES_PERMITIDOS.indexOf(currentRole) !== -1;
+  }
+
+  var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+  var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+  var FN_URL = SB_URL + '/functions/v1/notificar-guillermo-logistica';
+
+  function notificarGuillermo(payload){
+    fetch(FN_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).catch(function(){});
+  }
+
+  function toast(msg, esError){
+    var t = document.getElementById('toast');
+    if (t) { t.textContent = (esError?'⚠ ':'✓ ') + msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); }, 2600); }
+    else { alert(msg); }
+  }
+
+  function crearOverlay(id, tituloHtml, camposHtml, onGuardar){
+    var existente = document.getElementById(id);
+    if (existente) existente.remove();
+    var overlay = document.createElement('div');
+    overlay.id = id;
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:12px;max-width:440px;width:92%;padding:20px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.25);">' +
+        '<button data-close style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">✕</button>' +
+        tituloHtml +
+        '<form data-form>' + camposHtml +
+          '<button type="submit" style="margin-top:6px;width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;">Guardar</button>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-close]').addEventListener('click', function(){ overlay.remove(); });
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('[data-form]').addEventListener('submit', function(e){
+      e.preventDefault();
+      onGuardar(overlay, e.target);
+    });
+    return overlay;
+  }
+
+  function abrirNuevoPedido(){
+    if (!gateOk()) return;
+    crearOverlay('smNuevoPedidoOverlay',
+      '<h2 style="margin:0 0 4px;font-size:18px;color:#111827;">📦 Nuevo pedido</h2><p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Se agrega al Flujo Operativo, etapa inicial: Pedido.</p>',
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Folio *</label>' +
+      '<input required name="folio" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:14px;" placeholder="Ej. POQ-3001">' +
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Cliente *</label>' +
+      '<input required name="cliente" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:4px;font-size:14px;" placeholder="Nombre del cliente">',
+      async function(overlay, form){
+        var folio = form.folio.value.trim();
+        var cliente = form.cliente.value.trim();
+        if (!folio || !cliente) return;
+        var client = getSbLocal();
+        var res = await client.from('menlun_pedidos_flujo').insert({ folio: folio, cliente: cliente, etapa_actual: 'pedido', bloqueado: false });
+        if (res.error) { toast('No se pudo guardar: ' + res.error.message, true); return; }
+        overlay.remove();
+        toast('Pedido creado');
+        if (typeof renderFlujo === 'function') renderFlujo();
+        notificarGuillermo({ tipo:'pedido', folio: folio, cliente: cliente, origen: (currentRole||'ERP') });
+      }
+    );
+  }
+
+  function abrirNuevoBloqueo(){
+    if (!gateOk()) return;
+    crearOverlay('smNuevoBloqueoOverlay',
+      '<h2 style="margin:0 0 4px;font-size:18px;color:#111827;">🚧 Nuevo bloqueo</h2><p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Se agrega al tablero en la columna Abierto.</p>',
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Tipo *</label>' +
+      '<select required name="tipo" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:14px;">' +
+        '<option value="logistica">Logística</option><option value="pedido">Pedido</option><option value="backorder">Backorder</option>' +
+        '<option value="almacen">Almacén</option><option value="mantenimiento">Mantenimiento</option><option value="crm">CRM</option><option value="compras">Compras</option>' +
+      '</select>' +
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Referencia *</label>' +
+      '<input required name="referencia" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:14px;" placeholder="Ej. folio o clave">' +
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Área</label>' +
+      '<input name="area" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:14px;" placeholder="Ej. Logística">' +
+      '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">Causa *</label>' +
+      '<input required name="causa" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:4px;font-size:14px;" placeholder="Ej. Falta de factura">',
+      async function(overlay, form){
+        var tipo = form.tipo.value;
+        var referencia = form.referencia.value.trim();
+        var area = form.area.value.trim();
+        var causa = form.causa.value.trim();
+        if (!tipo || !referencia || !causa) return;
+        var client = getSbLocal();
+        var res = await client.from('menlun_bloqueos').insert({ tipo: tipo, referencia: referencia, area: area || null, causa: causa, estatus: 'abierto' });
+        if (res.error) { toast('No se pudo guardar: ' + res.error.message, true); return; }
+        overlay.remove();
+        toast('Bloqueo creado');
+        if (typeof renderKanban === 'function') renderKanban('bloqueos','zb-');
+        if (tipo === 'logistica' || /log/i.test(area)) {
+          notificarGuillermo({ tipo:'bloqueo', referencia: referencia, area: area, causa: causa, origen: (currentRole||'ERP') });
+        }
+      }
+    );
+  }
+
+  var sbLocal = null;
+  function getSbLocal(){
+    if (!sbLocal && window.supabase && window.supabase.createClient) sbLocal = window.supabase.createClient(SB_URL, SB_KEY);
+    return sbLocal;
+  }
+
+  function agregarBotones(){
+    if (!gateOk()) return;
+    var pageFlujo = document.getElementById('page-flujo');
+    if (pageFlujo && !document.getElementById('smBtnNuevoPedido')) {
+      var subFlujo = pageFlujo.querySelector('.hello-sub');
+      if (subFlujo) {
+        var btnP = document.createElement('button');
+        btnP.id = 'smBtnNuevoPedido';
+        btnP.textContent = '+ Nuevo pedido';
+        btnP.style.cssText = 'margin-top:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;';
+        btnP.addEventListener('click', abrirNuevoPedido);
+        subFlujo.parentElement.insertBefore(btnP, subFlujo.nextSibling);
+      }
+    }
+    var pageBloqueos = document.getElementById('page-bloqueos');
+    if (pageBloqueos && !document.getElementById('smBtnNuevoBloqueo')) {
+      var subBloq = pageBloqueos.querySelector('.hello-sub');
+      if (subBloq) {
+        var btnB = document.createElement('button');
+        btnB.id = 'smBtnNuevoBloqueo';
+        btnB.textContent = '+ Nuevo bloqueo';
+        btnB.style.cssText = 'margin-top:10px;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;';
+        btnB.addEventListener('click', abrirNuevoBloqueo);
+        subBloq.parentElement.insertBefore(btnB, subBloq.nextSibling);
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', agregarBotones);
+  var tries = 0;
+  var poll = setInterval(function(){
+    agregarBotones();
+    tries++;
+    if (tries > 60) clearInterval(poll);
+  }, 500);
+})();
+</script>
