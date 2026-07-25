@@ -1,0 +1,78 @@
+<script>
+/* SMULTIMACONEXIONV3: reemplaza V1/V2. Linea sutil debajo del saludo, con la propia ultima conexion del usuario que entro (aplica a todos los roles). Sin caja, sin parpadeo, sin refrescos agresivos. */
+(function(){
+  var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+  var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+
+  function obtenerCorreo(){
+    try {
+      var keys = Object.keys(localStorage).filter(function(k){ return /^sb-.*-auth-token$/.test(k); });
+      for (var i=0;i<keys.length;i++){
+        var v = JSON.parse(localStorage.getItem(keys[i]));
+        if (v && v.user && v.user.email) return v.user.email;
+      }
+    } catch(e){}
+    return null;
+  }
+
+  function formatoRelativo(fechaIso){
+    if (!fechaIso) return null;
+    var f = new Date(fechaIso);
+    var diffMin = Math.floor((new Date() - f) / 60000);
+    if (diffMin < 1) return 'hace un momento';
+    if (diffMin < 60) return 'hace ' + diffMin + ' min';
+    if (diffMin < 1440) return 'hace ' + Math.floor(diffMin/60) + ' h';
+    return 'hace ' + Math.floor(diffMin/1440) + ' d';
+  }
+
+  function limpiarVersionesViejas(){
+    var viejo1 = document.getElementById('smUltimaConexionPanel');
+    if (viejo1) viejo1.remove();
+    var viejo2 = document.getElementById('smUltimaConexionLinea');
+    if (viejo2) viejo2.remove();
+  }
+
+  function asegurarLinea(){
+    var hello = document.querySelector('.hello');
+    if (!hello) return null;
+    limpiarVersionesViejas();
+    var existente = document.getElementById('smUltimaConexionV3');
+    if (existente) return existente;
+    var linea = document.createElement('div');
+    linea.id = 'smUltimaConexionV3';
+    linea.style.cssText = 'font-size:12px;color:#9ca3af;margin-top:2px;';
+    var refHelloSub = document.querySelector('.hello-sub') || hello;
+    refHelloSub.parentElement.insertBefore(linea, refHelloSub.nextSibling);
+    return linea;
+  }
+
+  var yaCargado = false;
+  async function cargar(){
+    var hello = document.querySelector('.hello');
+    if (!hello) return;
+    var linea = asegurarLinea();
+    if (!linea || yaCargado) return;
+    var correo = obtenerCorreo();
+    if (!correo) return;
+    yaCargado = true;
+    try {
+      var res = await fetch(SB_URL + '/rest/v1/menlun_ultima_conexion?select=last_sign_in_at&correo=eq.' + encodeURIComponent(correo), {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+      });
+      if (!res.ok) return;
+      var rows = await res.json();
+      if (!rows.length) return;
+      var rel = formatoRelativo(rows[0].last_sign_in_at);
+      if (rel) linea.textContent = 'Última conexión: ' + rel;
+    } catch(e) { /* silencioso */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', cargar);
+  var tries = 0;
+  var poll = setInterval(function(){
+    cargar();
+    tries++;
+    if (tries > 30) clearInterval(poll);
+  }, 500);
+})();
+</script>
