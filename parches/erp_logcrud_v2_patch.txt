@@ -1,0 +1,257 @@
+<script>
+/* SMLOGCRUDV2: reemplaza SMLOGCRUDV1. Alta/edicion/eliminacion en Fletes y Costos + Facturas y Remisiones (rol logistica), con modal propio en vez de prompt() nativo. */
+(function(){
+  function esLogistica(){ return typeof currentRole !== 'undefined' && currentRole === 'logistica'; }
+  var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+  var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+
+  function sbPatch(path, body){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify(body)
+    });
+  }
+  function sbDelete(path){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'DELETE',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, Prefer:'return=minimal' }
+    });
+  }
+  function sbPost(path, body){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify(body)
+    });
+  }
+
+  function toast(msg, esError){
+    var t = document.getElementById('toast');
+    if (t) { t.textContent = (esError?'⚠ ':'✓ ') + msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); }, 2600); }
+    else if (esError) { alert(msg); }
+  }
+
+  function confirmarEliminar(msg, onOk){
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:12px;max-width:380px;width:90%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25);">' +
+        '<p style="margin:0 0 16px;font-size:14px;color:#111827;">' + msg + '</p>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+          '<button data-cancel style="padding:8px 14px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:13px;">Cancelar</button>' +
+          '<button data-ok style="padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px;font-weight:600;">Eliminar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-cancel]').addEventListener('click', function(){ overlay.remove(); });
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('[data-ok]').addEventListener('click', function(){ overlay.remove(); onOk(); });
+  }
+
+  function campoHtml(label, name, value, tipo){
+    var stepAttr = (tipo === 'number') ? ' step="any"' : '';
+    return '<label style="display:block;font-size:12px;color:#374151;margin-bottom:4px;">' + label + '</label>' +
+      '<input name="' + name + '" type="' + (tipo||'text') + '"' + stepAttr + ' value="' + (value==null?'':String(value).replace(/"/g,'&quot;')) + '" ' +
+      'style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:14px;">';
+  }
+
+  function abrirModalEdicion(titulo, camposHtml, onGuardar){
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:12px;max-width:400px;width:92%;padding:20px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.25);">' +
+        '<button data-close style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">✕</button>' +
+        '<h2 style="margin:0 0 16px;font-size:17px;color:#111827;">✏️ ' + titulo + '</h2>' +
+        '<form data-form>' + camposHtml +
+          '<button type="submit" style="margin-top:6px;width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;">Guardar cambios</button>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-close]').addEventListener('click', function(){ overlay.remove(); });
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('[data-form]').addEventListener('submit', function(e){
+      e.preventDefault();
+      onGuardar(overlay, e.target);
+    });
+    return overlay;
+  }
+
+  function findModalByHeading(text){
+    var heading = Array.from(document.querySelectorAll('*')).find(function(el){
+      return el.children.length===0 && el.textContent.trim()===text;
+    });
+    if (!heading) return null;
+    var modal = heading;
+    for (var i=0;i<8 && modal; i++){
+      if (modal.querySelectorAll && modal.querySelectorAll('table').length) break;
+      modal = modal.parentElement;
+    }
+    return modal;
+  }
+
+  function ensureActionsHeader(table){
+    var thead = table.querySelector('thead tr');
+    if (thead && !thead.querySelector('.smAccionesTh')){
+      var th = document.createElement('th');
+      th.className = 'smAccionesTh';
+      th.textContent = 'Acciones';
+      thead.appendChild(th);
+    }
+  }
+
+  function makeBtn(label, color, onClick){
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'margin-right:6px;padding:3px 8px;border-radius:6px;border:none;cursor:pointer;font-size:12px;color:#fff;background:'+color+';white-space:nowrap;';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function procesarFletes(){
+    var modal = findModalByHeading('Fletes y Costos');
+    if (!modal) return;
+    var table = modal.querySelector('table');
+    if (!table) return;
+    ensureActionsHeader(table);
+    var yearMatch = (modal.textContent.match(/,\s*(\d{4})/)||[])[1] || String(new Date().getFullYear());
+    Array.from(table.querySelectorAll('tr')).forEach(function(row){
+      if (row.parentElement.tagName === 'THEAD') return;
+      if (row.querySelector('.smAccionesTd')) return;
+      var cells = row.children;
+      if (cells.length < 6) return;
+      var tipoTxt = cells[0].textContent.trim().toLowerCase();
+      var mesTxt = cells[1].textContent.trim();
+      var filtro = 'anio=eq.'+yearMatch+'&mes=eq.'+encodeURIComponent(mesTxt)+'&tipo=eq.'+encodeURIComponent(tipoTxt);
+      var td = document.createElement('td');
+      td.className = 'smAccionesTd';
+      td.appendChild(makeBtn('Editar', '#2563eb', function(){
+        abrirModalEdicion('Editar ' + tipoTxt + ' ' + mesTxt,
+          campoHtml('Gasto ($)', 'gasto', cells[2].textContent.replace(/[$,]/g,''), 'number') +
+          campoHtml('KG / Toneladas', 'kg', cells[3].textContent.replace(/,/g,''), 'number') +
+          campoHtml('Número de fletes', 'numFletes', cells[4].textContent.trim(), 'number') +
+          '<p style="font-size:11px;color:#9ca3af;margin:-6px 0 12px;">El costo por KG se recalcula automáticamente (columna generada por la base de datos).</p>',
+          function(overlay, form){
+            // Nota: costo_x_kg es una columna GENERADA en Supabase (gasto/toneladas). No se envía en el PATCH; Postgres la recalcula sola.
+            var gasto = form.gasto.value, kg = form.kg.value, numFletes = form.numFletes.value;
+            sbPatch('menlun_logistica_fletes_costos?'+filtro, {
+              gasto: parseFloat(gasto)||0,
+              toneladas: parseFloat(kg)||0,
+              num_fletes: parseInt(numFletes)||0
+            }).then(function(r){
+              if (!r.ok){ toast('No se pudo actualizar.', true); return; }
+              var nuevoCostoKg = (parseFloat(kg)||0) !== 0 ? (parseFloat(gasto)||0) / parseFloat(kg) : 0;
+              cells[2].textContent = '$'+(parseFloat(gasto)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+              cells[3].textContent = kg;
+              cells[4].textContent = numFletes;
+              cells[5].textContent = '$'+nuevoCostoKg.toFixed(2);
+              overlay.remove();
+              toast('Registro actualizado');
+            });
+          }
+        );
+      }));
+      td.appendChild(makeBtn('Eliminar', '#dc2626', function(){
+        confirmarEliminar('¿Eliminar el registro de ' + tipoTxt + ' ' + mesTxt + '?', function(){
+          sbDelete('menlun_logistica_fletes_costos?'+filtro).then(function(r){
+            if (!r.ok){ toast('No se pudo eliminar.', true); return; }
+            row.remove();
+            toast('Registro eliminado');
+          });
+        });
+      }));
+      row.appendChild(td);
+    });
+  }
+
+  function addCrearBtn(modal, table, tabla, esRemision){
+    var marker = 'smCrear-' + tabla;
+    if (modal.querySelector('.' + marker)) return;
+    var btn = document.createElement('button');
+    btn.className = marker;
+    btn.textContent = esRemision ? '+ Nueva remision' : '+ Nueva factura';
+    btn.style.cssText = 'margin:0 0 10px 0;padding:6px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600;color:#fff;background:#0f172a;display:block;';
+    btn.addEventListener('click', function(){
+      abrirModalEdicion(esRemision ? 'Nueva remisión' : 'Nueva factura',
+        campoHtml('Fecha (AAAA-MM-DD)', 'fecha', new Date().toISOString().slice(0,10), 'date') +
+        campoHtml('Folio', 'folio', '') +
+        campoHtml('Cliente', 'cliente', '') +
+        campoHtml(esRemision ? 'Vendedor' : 'Almacén', 'campoExtra', '') +
+        campoHtml('Estatus', 'estatus', esRemision ? 'Pendiente' : 'Normal'),
+        function(overlay, form){
+          var fecha = form.fecha.value, folio = form.folio.value.trim(), cliente = form.cliente.value.trim(), campoExtra = form.campoExtra.value.trim(), estatus = form.estatus.value.trim();
+          if (!folio) { toast('El folio es obligatorio.', true); return; }
+          var body = { fecha: fecha, folio: folio, cliente: cliente, estatus: estatus };
+          if (esRemision) body.vendedor = campoExtra; else body.almacen = campoExtra;
+          sbPost(tabla, body).then(function(r){
+            if (!r.ok){ toast('No se pudo crear el registro.', true); return; }
+            overlay.remove();
+            toast('Registro creado. Cierra y vuelve a abrir para verlo en la lista.');
+          });
+        }
+      );
+    });
+    table.parentElement.insertBefore(btn, table);
+  }
+
+  function procesarFacturasRemisiones(){
+    var modal = findModalByHeading('Facturas y Remisiones');
+    if (!modal) return;
+    var tables = modal.querySelectorAll('table');
+    tables.forEach(function(table){
+      var headEl = table.querySelector('thead') || table.querySelectorAll('tr')[0];
+      var headTxt = (headEl ? headEl.textContent : '').toUpperCase();
+      var esRemision = headTxt.indexOf('VENDEDOR') !== -1;
+      var esFactura = headTxt.indexOf('ALMAC') !== -1;
+      if (!esRemision && !esFactura) return;
+      var tabla = esRemision ? 'menlun_logistica_remisiones' : 'menlun_logistica_facturas';
+      ensureActionsHeader(table);
+      addCrearBtn(modal, table, tabla, esRemision);
+      Array.from(table.querySelectorAll('tr')).forEach(function(row){
+        if (row.parentElement.tagName === 'THEAD') return;
+        if (row.querySelector('.smAccionesTd')) return;
+        var cells = row.children;
+        if (cells.length < 5) return;
+        var folio = cells[1].textContent.trim();
+        var td = document.createElement('td');
+        td.className = 'smAccionesTd';
+        td.appendChild(makeBtn('Editar', '#2563eb', function(){
+          abrirModalEdicion('Editar folio ' + folio,
+            campoHtml('Cliente', 'cliente', cells[2].textContent.trim()) +
+            campoHtml('Estatus', 'estatus', cells[4].textContent.trim()),
+            function(overlay, form){
+              var cliente = form.cliente.value.trim(), estatus = form.estatus.value.trim();
+              sbPatch(tabla+'?folio=eq.'+encodeURIComponent(folio), { estatus: estatus, cliente: cliente }).then(function(r){
+                if (!r.ok){ toast('No se pudo actualizar.', true); return; }
+                cells[2].textContent = cliente;
+                cells[4].textContent = estatus;
+                overlay.remove();
+                toast('Registro actualizado');
+              });
+            }
+          );
+        }));
+        td.appendChild(makeBtn('Eliminar', '#dc2626', function(){
+          confirmarEliminar('¿Eliminar el folio ' + folio + '?', function(){
+            sbDelete(tabla+'?folio=eq.'+encodeURIComponent(folio)).then(function(r){
+              if (!r.ok){ toast('No se pudo eliminar.', true); return; }
+              row.remove();
+              toast('Folio eliminado');
+            });
+          });
+        }));
+        row.appendChild(td);
+      });
+    });
+  }
+
+  function tick(){
+    if (!esLogistica()) return;
+    procesarFletes();
+    procesarFacturasRemisiones();
+  }
+
+  document.addEventListener('DOMContentLoaded', tick);
+  setInterval(tick, 700);
+})();
+</script>
