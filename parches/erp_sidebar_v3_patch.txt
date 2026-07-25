@@ -1,0 +1,71 @@
+<script>
+/* SMSIDEBARV3: reemplaza SMSIDEBARV1/V2. Mueve accesos directos de Direccion/Admin al menu izquierdo y oculta duplicados del topbar de forma segura (fix del incidente del 24-jul: ya no sube por ancestros por altura, usa selector directo + limite de seguridad) */
+(function(){
+  if (typeof currentRole !== 'undefined' && currentRole && ['direccion','admin_sistemas'].indexOf(currentRole) === -1) return;
+
+  var ITEMS = [
+    { id: 'smSideLogisticaV3', label: 'Logística', trigger: 'tbLogisticaBtn' },
+    { id: 'smSideProdIV3', label: 'Producción I', trigger: 'smProdIBtn' },
+    { id: 'smSideTableroV3', label: 'Tablero Maestro', trigger: 'tbTableroBtn' },
+    { id: 'smSidePedidosRecibirV3', label: 'Pedidos por recibir', trigger: 'tbPedidosRecibirBtn' },
+    { id: 'smSidePrioridadV3', label: 'Prioridad de pedidos', trigger: 'tbUrgenciaBtn' }
+  ];
+  var TOPBAR_IDS_A_OCULTAR = ['tbLogisticaBtn','smProdIBtn','tbTableroBtn','tbPedidosRecibirBtn','tbUrgenciaBtn'];
+
+  function ocultarTopbarDuplicados(){
+    TOPBAR_IDS_A_OCULTAR.forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return; // ya invisible (boton disparador oculto), nada que hacer
+      var wrap = el.closest('.tb-pill') || el;
+      var wrapRect = wrap.getBoundingClientRect();
+      // limite de seguridad: JAMAS ocultar contenedores grandes (evita repetir el incidente del 24-jul)
+      if (wrapRect.height > 100 || wrap.children.length > 5) return;
+      wrap.style.display = 'none';
+    });
+  }
+
+  function agregarItems(){
+    ocultarTopbarDuplicados();
+    if (document.getElementById(ITEMS[0].id)) return;
+    var candidatos = Array.from(document.querySelectorAll('a, button, div, span'));
+    var forecastEl = candidatos.find(function(el){
+      return el.children.length === 0 && el.textContent.trim() === 'Forecast' && el.closest('nav, aside, [class*="sidebar"], [class*="nav"]');
+    });
+    var contenedor = forecastEl ? (forecastEl.closest('.nav-item') || forecastEl.closest('li') || forecastEl.parentElement) : null;
+    var padre = contenedor ? contenedor.parentElement : null;
+    if (!padre) return;
+
+    var referencia = contenedor;
+    ITEMS.forEach(function(item){
+      var nodo = contenedor.cloneNode(true);
+      nodo.id = item.id;
+      nodo.style.opacity = '1';
+      nodo.style.cursor = 'pointer';
+      nodo.style.display = '';
+      nodo.removeAttribute('data-page');
+      nodo.onclick = null;
+      nodo.removeAttribute('onclick');
+      Array.from(nodo.querySelectorAll('*')).forEach(function(el){
+        el.onclick = null;
+        el.removeAttribute('onclick');
+        el.removeAttribute('data-page');
+      });
+      var textNode = Array.from(nodo.querySelectorAll('*')).find(function(el){ return el.children.length === 0 && el.textContent.trim().length > 0; }) || nodo;
+      textNode.textContent = item.label;
+      nodo.querySelectorAll('a').forEach(function(a){ a.removeAttribute('href'); });
+      nodo.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var trig = document.getElementById(item.trigger);
+        if (trig) trig.click();
+      }, true);
+      padre.insertBefore(nodo, referencia.nextSibling);
+      referencia = nodo;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', agregarItems);
+  setInterval(agregarItems, 500);
+})();
+</script>
