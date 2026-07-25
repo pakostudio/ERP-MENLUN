@@ -1,0 +1,14 @@
+<script>
+/* SMNAVWATCHV1: evita que el render de páginas oculte items del menú izquierdo por error */
+(function(){
+  function fix(){
+    document.querySelectorAll('.nav-item').forEach(function(el){
+      if (el.style && el.style.display === 'none') {
+        el.style.display = '';
+      }
+    });
+  }
+  document.addEventListener('DOMContentLoaded', fix);
+  setInterval(fix, 400);
+})();
+</script>

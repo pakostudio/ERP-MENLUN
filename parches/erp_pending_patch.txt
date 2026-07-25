@@ -1,0 +1,70 @@
+<script>
+/* SMPENDINGV1 */
+(function(){
+  if (typeof currentRole !== 'undefined' && currentRole && ['direccion','admin_sistemas'].indexOf(currentRole) === -1) return;
+
+  var PENDIENTES = [
+    { id: 'smPendCalidad', label: 'Calidad', persona: 'Luis', detalle: 'Estamos en espera de que Luis nos comparta el formato de Calidad que usan actualmente, para poder construir este módulo.' },
+    { id: 'smPendLogistica', label: 'Logística', persona: 'Guillermo', detalle: 'Pendiente de validar con Guillermo el detalle final antes de habilitar este acceso directo desde Dirección.' },
+    { id: 'smPendAriadna', label: 'Homologación', persona: 'Ariadna', detalle: 'Estamos en espera de que Ariadna nos comparta su información/proceso para poder homologarlo dentro del ERP.' },
+    { id: 'smPendBryan', label: 'Prioridades Producción', persona: 'Bryan', detalle: 'Pendiente de confirmar con Bryan el arranque de la matriz de prioridades de Producción (ya cuenta con el dato de urgencia del cliente).' }
+  ];
+
+  function crearModal(){
+    if (document.getElementById('smPendOverlay')) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'smPendOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:none;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:12px;max-width:460px;width:92%;padding:24px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.25);">' +
+        '<button id="smPendClose" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">✕</button>' +
+        '<h2 id="smPendTitle" style="margin:0 0 8px;font-size:17px;color:#111827;"></h2>' +
+        '<p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em;">Módulo en diseño</p>' +
+        '<p id="smPendDetalle" style="margin:0;font-size:14px;color:#4b5563;line-height:1.5;"></p>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('smPendClose').onclick = function(){ overlay.style.display = 'none'; };
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.style.display = 'none'; });
+  }
+
+  function abrir(item){
+    crearModal();
+    document.getElementById('smPendTitle').innerText = '🕓 ' + item.label;
+    document.getElementById('smPendDetalle').innerText = item.detalle;
+    document.getElementById('smPendOverlay').style.display = 'flex';
+  }
+
+  function agregarItems(){
+    if (document.getElementById(PENDIENTES[0].id)) return;
+    var candidatos = Array.from(document.querySelectorAll('a, button, div'));
+    var forecastEl = candidatos.find(function(el){
+      return el.children.length === 0 && el.textContent.trim() === 'Forecast' && el.closest('nav, aside, [class*="sidebar"], [class*="nav"]');
+    });
+    var contenedor = forecastEl ? (forecastEl.closest('li') || forecastEl.parentElement) : null;
+    var referencia = contenedor;
+    var padre = referencia ? referencia.parentElement : null;
+    if (!padre) return; // esperar a que el nav ya esté renderizado
+
+    PENDIENTES.forEach(function(item){
+      var nodo = referencia.cloneNode(true);
+      nodo.id = item.id;
+      nodo.style.opacity = '0.6';
+      nodo.style.cursor = 'pointer';
+      var textNode = Array.from(nodo.querySelectorAll('*')).find(function(el){ return el.children.length === 0 && el.textContent.trim().length > 0; }) || nodo;
+      textNode.textContent = item.label;
+      nodo.querySelectorAll('a').forEach(function(a){ a.removeAttribute('href'); });
+      nodo.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); abrir(item); });
+      padre.insertBefore(nodo, referencia.nextSibling);
+      referencia = nodo;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', agregarItems);
+  var tries = 0;
+  var iv = setInterval(function(){
+    agregarItems();
+    tries++;
+    if (tries > 40) clearInterval(iv);
+  }, 500);
+})();
+</script>

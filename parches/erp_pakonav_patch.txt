@@ -1,0 +1,35 @@
+<script>
+/* SMPAKONAVV2 */
+(function(){
+  var EMAIL_OBJETIVO = 'pako@sportcstudio.com';
+
+  function miEmail(){
+    try {
+      var raw = localStorage.getItem('sb-diqbmyqvuyollvlvjniz-auth-token');
+      if (!raw) return null;
+      var m = raw.match(/"email":"([^"]+)"/);
+      return m ? m[1] : null;
+    } catch(e){ return null; }
+  }
+
+  function esPako(){
+    return miEmail() === EMAIL_OBJETIVO;
+  }
+
+  function quitarPaginas(){
+    if (!esPako()) return;
+    ['flujo','capa'].forEach(function(pageId){
+      var el = document.querySelector('[data-page="' + pageId + '"]');
+      if (el) el.remove();
+    });
+  }
+
+  function tick(){
+    if (!esPako()) return;
+    quitarPaginas();
+  }
+
+  document.addEventListener('DOMContentLoaded', tick);
+  setInterval(tick, 800);
+})();
+</script>

@@ -1,0 +1,71 @@
+<script>
+/* SMSIDEBARV2: reemplaza SMSIDEBARV1. Mueve TODOS los accesos directos de Direccion/Admin al menu izquierdo y oculta los duplicados de la barra superior */
+(function(){
+  if (typeof currentRole !== 'undefined' && currentRole && ['direccion','admin_sistemas'].indexOf(currentRole) === -1) return;
+
+  var ITEMS = [
+    { id: 'smSideLogisticaV2', label: 'Logística', trigger: 'tbLogisticaBtn' },
+    { id: 'smSideProdIV2', label: 'Producción I', trigger: 'smProdIBtn' },
+    { id: 'smSideTableroV2', label: 'Tablero Maestro', trigger: 'tbTableroBtn' },
+    { id: 'smSidePedidosRecibirV2', label: 'Pedidos por recibir', trigger: 'tbPedidosRecibirBtn' },
+    { id: 'smSidePrioridadV2', label: 'Prioridad de pedidos', trigger: 'tbUrgenciaBtn' }
+  ];
+  var TOPBAR_IDS_A_OCULTAR = ['tbLogisticaBtn','smProdIBtn','tbTableroBtn','tbPedidosRecibirBtn','tbUrgenciaBtn'];
+
+  function ocultarTopbarDuplicados(){
+    TOPBAR_IDS_A_OCULTAR.forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el) return;
+      var wrap = el;
+      // subir hasta el contenedor tipo pill (con padding/borde) sin pasar del topbar
+      for (var i=0;i<3 && wrap.parentElement; i++){
+        if (wrap.getBoundingClientRect().height > 20) break;
+        wrap = wrap.parentElement;
+      }
+      wrap.style.display = 'none';
+    });
+  }
+
+  function agregarItems(){
+    ocultarTopbarDuplicados();
+    if (document.getElementById(ITEMS[0].id)) return;
+    var candidatos = Array.from(document.querySelectorAll('a, button, div, span'));
+    var forecastEl = candidatos.find(function(el){
+      return el.children.length === 0 && el.textContent.trim() === 'Forecast' && el.closest('nav, aside, [class*="sidebar"], [class*="nav"]');
+    });
+    var contenedor = forecastEl ? (forecastEl.closest('.nav-item') || forecastEl.closest('li') || forecastEl.parentElement) : null;
+    var padre = contenedor ? contenedor.parentElement : null;
+    if (!padre) return;
+
+    var referencia = contenedor;
+    ITEMS.forEach(function(item){
+      var nodo = contenedor.cloneNode(true);
+      nodo.id = item.id;
+      nodo.style.opacity = '1';
+      nodo.style.cursor = 'pointer';
+      nodo.style.display = '';
+      nodo.removeAttribute('data-page');
+      nodo.onclick = null;
+      nodo.removeAttribute('onclick');
+      Array.from(nodo.querySelectorAll('*')).forEach(function(el){
+        el.onclick = null;
+        el.removeAttribute('onclick');
+        el.removeAttribute('data-page');
+      });
+      var textNode = Array.from(nodo.querySelectorAll('*')).find(function(el){ return el.children.length === 0 && el.textContent.trim().length > 0; }) || nodo;
+      textNode.textContent = item.label;
+      nodo.querySelectorAll('a').forEach(function(a){ a.removeAttribute('href'); });
+      nodo.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var trig = document.getElementById(item.trigger);
+        if (trig) trig.click();
+      }, true);
+      padre.insertBefore(nodo, referencia.nextSibling);
+      referencia = nodo;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', agregarItems);
+  setInterval(agregarItems, 500);
+})();
+</script>

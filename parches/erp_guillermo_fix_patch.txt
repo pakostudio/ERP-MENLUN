@@ -1,0 +1,137 @@
+<script>
+/* SMSIDEBARLOGV1: sidebar real para Logistica + ocultar duplicados del topbar */
+(function(){
+  function esLogistica(){ return typeof currentRole !== 'undefined' && currentRole === 'logistica'; }
+
+  function ocultarTopbarDuplicados(){
+    if (!esLogistica()) return;
+    ['tbLogisticaBtn','tbPedidosRecibirBtn'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+
+  function agregarItems(){
+    if (!esLogistica()) return;
+    ocultarTopbarDuplicados();
+    if (document.getElementById('smSideLogLogistica')) return;
+    var inicio = Array.from(document.querySelectorAll('.nav-item')).find(function(el){ return el.textContent.trim() === 'Inicio'; });
+    if (!inicio) return;
+    var padre = inicio.parentElement;
+    if (!padre) return;
+
+    var ITEMS = [
+      { id: 'smSideLogLogistica', label: 'Logística', trigger: 'tbLogisticaBtn' },
+      { id: 'smSideLogPedidos', label: 'Pedidos por recibir', trigger: 'tbPedidosRecibirBtn' }
+    ];
+    var referencia = inicio;
+    ITEMS.forEach(function(item){
+      var nodo = inicio.cloneNode(true);
+      nodo.id = item.id;
+      nodo.style.opacity = '1';
+      nodo.style.cursor = 'pointer';
+      nodo.removeAttribute('data-page');
+      nodo.onclick = null;
+      nodo.removeAttribute('onclick');
+      nodo.classList.remove('active');
+      Array.from(nodo.querySelectorAll('*')).forEach(function(el){
+        el.onclick = null;
+        el.removeAttribute('onclick');
+        el.removeAttribute('data-page');
+      });
+      var textNode = Array.from(nodo.querySelectorAll('*')).find(function(el){ return el.children.length === 0 && el.textContent.trim().length > 0; }) || nodo;
+      textNode.textContent = item.label;
+      nodo.querySelectorAll('a').forEach(function(a){ a.removeAttribute('href'); });
+      nodo.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var trig = document.getElementById(item.trigger);
+        if (trig) trig.click();
+      }, true);
+      padre.insertBefore(nodo, referencia.nextSibling);
+      referencia = nodo;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', agregarItems);
+  setInterval(agregarItems, 500);
+})();
+</script>
+<script>
+/* SMFAQROLV1: contenido de FAQ diferenciado por rol */
+(function(){
+  var FAQ_POR_ROL = {
+    logistica: {
+      titulo: 'Preguntas frecuentes — Logística',
+      sub: 'Guía rápida del módulo de Logística',
+      items: [
+        ['¿Dónde veo mis fletes y costos?', 'En el botón "Logística" del menú izquierdo → pestaña "Fletes y Costos". Ahí está el detalle de costo por kg, foráneos y locales.'],
+        ['¿Dónde veo facturas y remisiones?', 'En el botón "Logística" del menú izquierdo → pestaña "Facturas y Remisiones".'],
+        ['¿Qué es "Pedidos por recibir"?', 'Es el listado de lo que viene en camino hacia el almacén, para que puedas planear la recepción.'],
+        ['¿Qué es "Flujo Operativo"?', 'Es la vista general del proceso completo: pedido → factura → almacén → logística → entrega → cierre. No es exclusivo de Logística, lo comparten varias áreas.'],
+        ['¿Qué es "Bloqueos"?', 'Ahí se marcan pedidos detenidos (por ejemplo, esperando factura) para que no se programe su salida antes de tiempo.'],
+        ['¿Qué pasa si mi pregunta no está aquí?', 'Contacta a Pako o Alan de SM Soluciones para resolver dudas adicionales o pedir ajustes al sistema.']
+      ]
+    },
+    almacen: {
+      titulo: 'Preguntas frecuentes — Almacén',
+      sub: 'Guía rápida del módulo de Almacén',
+      items: [
+        ['¿Cómo veo mi inventario?', 'Entra a Almacén → pestaña "Inventario MP". Ahí ves existencias por material.'],
+        ['¿Cómo registro un movimiento?', 'Usa el botón "Registrar movimiento" dentro de Almacén.'],
+        ['¿Cómo importo inventario desde Excel?', 'Usa el botón "Importar inventario" dentro de Almacén.'],
+        ['¿Dónde veo consumos mensuales?', 'En la pestaña "Consumos mensuales" dentro de Almacén, con datos reales día a día.'],
+        ['¿Qué pasa si mi pregunta no está aquí?', 'Contacta a Pako o Alan de SM Soluciones para resolver dudas adicionales o pedir ajustes al sistema.']
+      ]
+    },
+    compras: {
+      titulo: 'Preguntas frecuentes',
+      sub: 'Guía rápida del módulo de Compras',
+      items: [
+        ['¿Qué es el módulo de Compras?', 'Es tu centro de trabajo: aquí creas solicitudes de compra, buscas y administras proveedores, y das seguimiento a todo el proceso.'],
+        ['¿Cómo creo una solicitud de compra?', 'Entra a Compras → Solicitudes → botón "Nueva solicitud". Llena producto, cantidad y nivel de urgencia (Programable, Alta o Crítica).'],
+        ['¿Qué significan los niveles de urgencia?', 'Programable: sin prisa, se puede planear. Alta: se necesita pronto. Crítica: es urgente, puede afectar producción u operación si no se resuelve rápido.'],
+        ['¿Cómo busco o asigno un proveedor?', 'En Compras → Proveedores puedes filtrar por producto, ubicación o certificación. Si no encuentras uno, usa la pestaña "Búsqueda de proveedores" para buscar uno nuevo por producto y zona.'],
+        ['¿Cómo edito la información de un proveedor?', 'Abre su ficha, da clic en "Editar", actualiza los datos que necesites y presiona "Guardar".'],
+        ['¿Cómo agrego los productos que surte un proveedor?', 'Dentro de la ficha del proveedor, en "Productos que surte", usa el formulario para agregarlos uno por uno — puedes hacerlo poco a poco, no es necesario terminarlo de una vez.'],
+        ['¿Cómo exporto el directorio o una ficha?', 'Verás los botones "Exportar Excel" y "Exportar PDF" arriba del directorio y dentro de cada ficha de proveedor. El PDF incluye el logo de la empresa.'],
+        ['¿Qué pasa si mi pregunta no está aquí?', 'Contacta a Pako o Alan de SM Soluciones para resolver dudas adicionales o pedir ajustes al sistema.']
+      ]
+    },
+    direccion: {
+      titulo: 'Preguntas frecuentes — Dirección',
+      sub: 'Guía rápida de tu vista de Dirección',
+      items: [
+        ['¿Qué es el Semáforo de consultoría por jefatura?', 'Muestra el avance de acciones detectadas en el diagnóstico, por área: abiertas, cerradas y bloqueadas.'],
+        ['¿Qué es Tablero Maestro?', 'Es tu vista consolidada de todas las áreas en un solo lugar.'],
+        ['¿Qué es Logística en tu menú?', 'Acceso directo a Fletes y Costos, y Facturas y Remisiones de Logística.'],
+        ['¿Qué es Producción I?', 'Es el cruce de homologación: qué productos promueve Ventas (Forecast) contra los que Producción puede fabricar (Fórmulas) y los autorizados por Dirección/Ventas. Marca en rojo los que tienen riesgo.'],
+        ['¿Qué es Prioridad de pedidos?', 'Vista de urgencia de pedidos capturada por Ventas, para coordinar con Producción y Logística.'],
+        ['¿Qué pasa si mi pregunta no está aquí?', 'Contacta a Pako o Alan de SM Soluciones para resolver dudas adicionales o pedir ajustes al sistema.']
+      ]
+    }
+  };
+  FAQ_POR_ROL.admin_sistemas = FAQ_POR_ROL.direccion;
+
+  function rolActual(){ return typeof currentRole !== 'undefined' ? currentRole : null; }
+
+  function render(){
+    var cfg = FAQ_POR_ROL[rolActual()];
+    if (!cfg) return; // sin config para este rol: se deja el FAQ original tal cual
+    var body = cfg.items.map(function(it){
+      return '<details class="faq-item"><summary>' + it[0] + '</summary><p>' + it[1] + '</p></details>';
+    }).join('');
+    if (typeof abrirOverlay2 === 'function') {
+      abrirOverlay2(cfg.titulo, cfg.sub, body);
+    }
+  }
+
+  function instalar(){
+    var cfg = FAQ_POR_ROL[rolActual()];
+    if (!cfg) return;
+    window.abrirFaq = render;
+  }
+
+  document.addEventListener('DOMContentLoaded', instalar);
+  setInterval(instalar, 800);
+})();
+</script>

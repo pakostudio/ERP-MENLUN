@@ -1,0 +1,123 @@
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* SMPRODIV1 */
+(function(){
+  var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+  var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+  var ROLES_PERMITIDOS = ['direccion','admin_sistemas'];
+  var sb = null;
+  function getSb(){
+    if (!sb && window.supabase && window.supabase.createClient) {
+      sb = window.supabase.createClient(SB_URL, SB_KEY);
+    }
+    return sb;
+  }
+
+  function gateOk(){
+    return typeof currentRole !== 'undefined' && !!currentRole && ROLES_PERMITIDOS.indexOf(currentRole) !== -1;
+  }
+
+  var ESTATUS_INFO = {
+    ok: { label: 'OK — homologado', bg: '#f0fdf4', color: '#16a34a' },
+    riesgo_no_autorizado: { label: 'Riesgo: Ventas lo promueve sin autorización', bg: '#fef2f2', color: '#dc2626' },
+    riesgo_sin_formula: { label: 'Riesgo: Ventas lo promueve sin fórmula de producción', bg: '#fef2f2', color: '#dc2626' },
+    revisar_falta_forecast: { label: 'Revisar: autorizado pero falta en Forecast', bg: '#fffbeb', color: '#d97706' },
+    revisar: { label: 'Revisar: existe fórmula sin venta/autorización activa', bg: '#f3f4f6', color: '#6b7280' }
+  };
+
+  function openModal(){
+    if (document.getElementById('smProdIOverlay')) { document.getElementById('smProdIOverlay').style.display='flex'; cargar(); return; }
+    var overlay = document.createElement('div');
+    overlay.id = 'smProdIOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:12px;max-width:920px;width:95%;max-height:88vh;overflow:auto;padding:20px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.25);">' +
+        '<button id="smProdIClose" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">✕</button>' +
+        '<h2 style="margin:0 0 4px;font-size:18px;color:#111827;">🏭 Producción I — Homologación de productos</h2>' +
+        '<p style="margin:0 0 14px;font-size:13px;color:#6b7280;">Cruce Forecast (Ventas) × Fórmulas (Producción) × Autorizados (Ventas + Dirección). Fuente: información compartida por Ariadna.</p>' +
+        '<div id="smProdIBody" style="font-size:13px;color:#6b7280;">Cargando…</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('smProdIClose').onclick = function(){ overlay.style.display='none'; };
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.style.display='none'; });
+    cargar();
+  }
+
+  function cargar(){
+    var body = document.getElementById('smProdIBody');
+    var client = getSb();
+    if (!client) { body.innerHTML = 'No se pudo conectar a la base de datos.'; return; }
+    client.from('menlun_produccion_homologacion')
+      .select('id,producto,en_forecast,en_formula,en_autorizado,estatus')
+      .order('estatus', {ascending:true})
+      .order('producto', {ascending:true})
+      .then(function(res){
+        if (res.error) { body.innerHTML = 'Error: ' + res.error.message; return; }
+        var rows = res.data || [];
+        var counts = {};
+        rows.forEach(function(r){ counts[r.estatus] = (counts[r.estatus]||0) + 1; });
+
+        var order = ['riesgo_no_autorizado','riesgo_sin_formula','revisar_falta_forecast','ok','revisar'];
+        var html = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">' +
+          order.filter(function(k){return counts[k];}).map(function(k){
+            var info = ESTATUS_INFO[k];
+            return '<span style="background:'+info.bg+';color:'+info.color+';padding:5px 10px;border-radius:999px;font-weight:600;font-size:12px;">'+info.label+': '+counts[k]+'</span>';
+          }).join('') + '</div>';
+
+        html += '<div style="margin-bottom:10px;">' +
+          '<select id="smProdIFiltro" style="border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:13px;">' +
+          '<option value="riesgo">Ver primero: riesgos (recomendado)</option>' +
+          '<option value="todos">Ver todos</option>' +
+          '</select></div>';
+
+        html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+          '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb;color:#374151;">' +
+          '<th style="padding:8px 6px;">Producto</th><th style="padding:8px 6px;">Forecast</th><th style="padding:8px 6px;">Fórmula</th><th style="padding:8px 6px;">Autorizado</th><th style="padding:8px 6px;">Estatus</th></tr></thead><tbody id="smProdITbody"></tbody></table>';
+        if (!rows.length) html += '<p>No hay datos cargados todavía.</p>';
+        body.innerHTML = html;
+
+        function pintar(filtro){
+          var tbody = document.getElementById('smProdITbody');
+          var lista = rows;
+          if (filtro === 'riesgo') {
+            lista = rows.filter(function(r){ return r.estatus === 'riesgo_no_autorizado' || r.estatus === 'riesgo_sin_formula'; });
+          }
+          tbody.innerHTML = lista.map(function(r){
+            var info = ESTATUS_INFO[r.estatus] || {label:r.estatus, bg:'#f3f4f6', color:'#374151'};
+            function check(b){ return b ? '✅' : '—'; }
+            return '<tr style="border-bottom:1px solid #f3f4f6;">' +
+              '<td style="padding:8px 6px;color:#111827;">' + r.producto + '</td>' +
+              '<td style="padding:8px 6px;text-align:center;">' + check(r.en_forecast) + '</td>' +
+              '<td style="padding:8px 6px;text-align:center;">' + check(r.en_formula) + '</td>' +
+              '<td style="padding:8px 6px;text-align:center;">' + check(r.en_autorizado) + '</td>' +
+              '<td style="padding:8px 6px;"><span style="background:'+info.bg+';color:'+info.color+';padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;">'+info.label+'</span></td>' +
+              '</tr>';
+          }).join('');
+        }
+        pintar('riesgo');
+        document.getElementById('smProdIFiltro').addEventListener('change', function(){ pintar(this.value); });
+      });
+  }
+
+  function addBoton(){
+    if (!gateOk()) { removerBoton(); return; }
+    if (document.getElementById('smProdIBtn')) return;
+    var btn = document.createElement('button');
+    btn.id = 'smProdIBtn';
+    btn.innerHTML = '🏭 Producción I';
+    btn.style.cssText = 'position:fixed;bottom:20px;right:190px;z-index:999998;background:#111827;color:#fff;border:none;border-radius:999px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);font-family:system-ui,sans-serif;';
+    btn.onclick = openModal;
+    document.body.appendChild(btn);
+  }
+  function removerBoton(){
+    var b = document.getElementById('smProdIBtn');
+    if (b) b.remove();
+    var o = document.getElementById('smProdIOverlay');
+    if (o) o.remove();
+  }
+
+  function tick(){ addBoton(); }
+  document.addEventListener('DOMContentLoaded', tick);
+  setInterval(tick, 800);
+})();
+</script>

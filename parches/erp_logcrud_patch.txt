@@ -1,0 +1,191 @@
+<script>
+/* SMLOGCRUDV1: alta/edicion/eliminacion en Fletes y Costos + Facturas y Remisiones (rol logistica) */
+(function(){
+  function esLogistica(){ return typeof currentRole !== 'undefined' && currentRole === 'logistica'; }
+  var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+  var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+
+  function sbPatch(path, body){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify(body)
+    });
+  }
+  function sbDelete(path){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'DELETE',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, Prefer:'return=minimal' }
+    });
+  }
+  function sbPost(path, body){
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify(body)
+    });
+  }
+
+  function findModalByHeading(text){
+    var heading = Array.from(document.querySelectorAll('*')).find(function(el){
+      return el.children.length===0 && el.textContent.trim()===text;
+    });
+    if (!heading) return null;
+    var modal = heading;
+    for (var i=0;i<8 && modal; i++){
+      if (modal.querySelectorAll && modal.querySelectorAll('table').length) break;
+      modal = modal.parentElement;
+    }
+    return modal;
+  }
+
+  function ensureActionsHeader(table){
+    var thead = table.querySelector('thead tr');
+    if (thead && !thead.querySelector('.smAccionesTh')){
+      var th = document.createElement('th');
+      th.className = 'smAccionesTh';
+      th.textContent = 'Acciones';
+      thead.appendChild(th);
+    }
+  }
+
+  function makeBtn(label, color, onClick){
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'margin-right:6px;padding:3px 8px;border-radius:6px;border:none;cursor:pointer;font-size:12px;color:#fff;background:'+color+';white-space:nowrap;';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function procesarFletes(){
+    var modal = findModalByHeading('Fletes y Costos');
+    if (!modal) return;
+    var table = modal.querySelector('table');
+    if (!table) return;
+    ensureActionsHeader(table);
+    var yearMatch = (modal.textContent.match(/,\s*(\d{4})/)||[])[1] || String(new Date().getFullYear());
+    Array.from(table.querySelectorAll('tr')).forEach(function(row){
+      if (row.parentElement.tagName === 'THEAD') return;
+      if (row.querySelector('.smAccionesTd')) return;
+      var cells = row.children;
+      if (cells.length < 6) return;
+      var tipoTxt = cells[0].textContent.trim().toLowerCase();
+      var mesTxt = cells[1].textContent.trim();
+      var filtro = 'anio=eq.'+yearMatch+'&mes=eq.'+encodeURIComponent(mesTxt)+'&tipo=eq.'+encodeURIComponent(tipoTxt);
+      var td = document.createElement('td');
+      td.className = 'smAccionesTd';
+      td.appendChild(makeBtn('Editar', '#2563eb', function(){
+        var gasto = prompt('Nuevo gasto ($) para ' + tipoTxt + ' ' + mesTxt + ':', cells[2].textContent.replace(/[$,]/g,''));
+        if (gasto===null) return;
+        var kg = prompt('Nuevos KG/Toneladas:', cells[3].textContent.replace(/,/g,''));
+        if (kg===null) return;
+        var numFletes = prompt('Numero de fletes:', cells[4].textContent.trim());
+        if (numFletes===null) return;
+        var costoKg = prompt('Costo por KG ($):', cells[5].textContent.replace(/[$,]/g,''));
+        if (costoKg===null) return;
+        sbPatch('menlun_logistica_fletes_costos?'+filtro, {
+          gasto: parseFloat(gasto)||0,
+          toneladas: parseFloat(kg)||0,
+          num_fletes: parseInt(numFletes)||0,
+          costo_x_kg: parseFloat(costoKg)||0
+        }).then(function(r){
+          if (!r.ok){ alert('No se pudo actualizar.'); return; }
+          cells[2].textContent = '$'+(parseFloat(gasto)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+          cells[3].textContent = kg;
+          cells[4].textContent = numFletes;
+          cells[5].textContent = '$'+(parseFloat(costoKg)||0).toFixed(2);
+        });
+      }));
+      td.appendChild(makeBtn('Eliminar', '#dc2626', function(){
+        if (!confirm('Eliminar el registro de '+tipoTxt+' '+mesTxt+'?')) return;
+        sbDelete('menlun_logistica_fletes_costos?'+filtro).then(function(r){
+          if (!r.ok){ alert('No se pudo eliminar.'); return; }
+          row.remove();
+        });
+      }));
+      row.appendChild(td);
+    });
+  }
+
+  function addCrearBtn(modal, table, tabla, esRemision){
+    var marker = 'smCrear-' + tabla;
+    if (modal.querySelector('.' + marker)) return;
+    var btn = document.createElement('button');
+    btn.className = marker;
+    btn.textContent = esRemision ? '+ Nueva remision' : '+ Nueva factura';
+    btn.style.cssText = 'margin:0 0 10px 0;padding:6px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600;color:#fff;background:#0f172a;display:block;';
+    btn.addEventListener('click', function(){
+      var fecha = prompt('Fecha (AAAA-MM-DD):', new Date().toISOString().slice(0,10));
+      if (fecha===null) return;
+      var folio = prompt('Folio:', '');
+      if (folio===null || !folio) return;
+      var cliente = prompt('Cliente:', '');
+      if (cliente===null) return;
+      var campoExtra = esRemision ? prompt('Vendedor:', '') : prompt('Almacen:', '');
+      if (campoExtra===null) return;
+      var estatus = prompt('Estatus:', esRemision ? 'Pendiente' : 'Normal');
+      if (estatus===null) return;
+      var body = { fecha: fecha, folio: folio, cliente: cliente, estatus: estatus };
+      if (esRemision) body.vendedor = campoExtra; else body.almacen = campoExtra;
+      sbPost(tabla, body).then(function(r){
+        if (!r.ok){ alert('No se pudo crear el registro.'); return; }
+        alert('Registro creado. Cierra y vuelve a abrir Facturas y Remisiones para verlo en la lista.');
+      });
+    });
+    table.parentElement.insertBefore(btn, table);
+  }
+
+  function procesarFacturasRemisiones(){
+    var modal = findModalByHeading('Facturas y Remisiones');
+    if (!modal) return;
+    var tables = modal.querySelectorAll('table');
+    tables.forEach(function(table){
+      var headEl = table.querySelector('thead') || table.querySelectorAll('tr')[0];
+      var headTxt = (headEl ? headEl.textContent : '').toUpperCase();
+      var esRemision = headTxt.indexOf('VENDEDOR') !== -1;
+      var esFactura = headTxt.indexOf('ALMAC') !== -1;
+      if (!esRemision && !esFactura) return;
+      var tabla = esRemision ? 'menlun_logistica_remisiones' : 'menlun_logistica_facturas';
+      ensureActionsHeader(table);
+      addCrearBtn(modal, table, tabla, esRemision);
+      Array.from(table.querySelectorAll('tr')).forEach(function(row){
+        if (row.parentElement.tagName === 'THEAD') return;
+        if (row.querySelector('.smAccionesTd')) return;
+        var cells = row.children;
+        if (cells.length < 5) return;
+        var folio = cells[1].textContent.trim();
+        var td = document.createElement('td');
+        td.className = 'smAccionesTd';
+        td.appendChild(makeBtn('Editar', '#2563eb', function(){
+          var estatus = prompt('Nuevo estatus para folio '+folio+':', cells[4].textContent.trim());
+          if (estatus===null) return;
+          var cliente = prompt('Cliente:', cells[2].textContent.trim());
+          if (cliente===null) return;
+          sbPatch(tabla+'?folio=eq.'+encodeURIComponent(folio), { estatus: estatus, cliente: cliente }).then(function(r){
+            if (!r.ok){ alert('No se pudo actualizar.'); return; }
+            cells[2].textContent = cliente;
+            cells[4].textContent = estatus;
+          });
+        }));
+        td.appendChild(makeBtn('Eliminar', '#dc2626', function(){
+          if (!confirm('Eliminar el folio '+folio+'?')) return;
+          sbDelete(tabla+'?folio=eq.'+encodeURIComponent(folio)).then(function(r){
+            if (!r.ok){ alert('No se pudo eliminar.'); return; }
+            row.remove();
+          });
+        }));
+        row.appendChild(td);
+      });
+    });
+  }
+
+  function tick(){
+    if (!esLogistica()) return;
+    procesarFletes();
+    procesarFacturasRemisiones();
+  }
+
+  document.addEventListener('DOMContentLoaded', tick);
+  setInterval(tick, 700);
+})();
+</script>

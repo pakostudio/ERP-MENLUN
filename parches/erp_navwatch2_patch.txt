@@ -1,0 +1,63 @@
+<script>
+/* SMNAVWATCHV2: evita que el render de paginas oculte O ELIMINE items del menu izquierdo por error */
+(function(){
+  var cache = []; // [{key, node, index}]
+
+  function keyOf(el){
+    var dp = el.getAttribute('data-page');
+    if (dp) return 'dp:' + dp;
+    return 'txt:' + el.textContent.trim();
+  }
+
+  function capturar(){
+    var contenedor = null;
+    var items = Array.from(document.querySelectorAll('.nav-item'));
+    items.forEach(function(el, idx){
+      if (!contenedor) contenedor = el.parentElement;
+      var k = keyOf(el);
+      var existing = cache.find(function(c){ return c.key === k; });
+      if (!existing){
+        cache.push({ key: k, node: el.cloneNode(true), index: idx });
+      } else {
+        // keep a fresh clone while it's alive so click handlers / labels stay current
+        existing.node = el.cloneNode(true);
+        existing.index = idx;
+      }
+    });
+  }
+
+  function fixDisplay(){
+    document.querySelectorAll('.nav-item').forEach(function(el){
+      if (el.style && el.style.display === 'none') {
+        el.style.display = '';
+      }
+    });
+  }
+
+  function restaurarFaltantes(){
+    if (!cache.length) return;
+    var contenedor = null;
+    var presentes = Array.from(document.querySelectorAll('.nav-item'));
+    if (presentes.length) contenedor = presentes[0].parentElement;
+    if (!contenedor) return;
+    var presentesKeys = presentes.map(keyOf);
+    cache.forEach(function(c){
+      if (presentesKeys.indexOf(c.key) === -1){
+        var clone = c.node.cloneNode(true);
+        var refIdx = Math.min(c.index, contenedor.children.length);
+        var refNode = contenedor.children[refIdx] || null;
+        contenedor.insertBefore(clone, refNode);
+      }
+    });
+  }
+
+  function tick(){
+    capturar();
+    fixDisplay();
+    restaurarFaltantes();
+  }
+
+  document.addEventListener('DOMContentLoaded', tick);
+  setInterval(tick, 400);
+})();
+</script>
