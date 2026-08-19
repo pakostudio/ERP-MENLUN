@@ -1765,7 +1765,7 @@ async function sendReport(){
   let error=null;
   if(currentSheet==='mant'){
     ({error} = await sb.from(TBL.mantenimiento_ordenes).insert({
-      equipo: currentPick, area: ROLE_LABEL[currentRole], tipo: 'correctivo',
+      equipo: currentPick, area: ROLE_LABEL[currentRole], tipo: ({'Bomba':'bomba','Banda':'banda','Válvula':'valvula','Eléctrico':'electrico','Fuga':'fuga','Otro':'otro'}[currentPick]||'otro'),
       descripcion: comment||null, prioridad: priority, estatus: 'pendiente',
       reportado_por: currentUsuarioId
     }));
