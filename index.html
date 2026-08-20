@@ -10233,6 +10233,241 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
 </script>
 
 <script>
+/* SMRETARDOSV1 - Modulo Retardos dentro de RH (Mirna) - editable, historico real 2026 */
+(function(){
+  if (window.__SMRETARDOSV1) return;
+  window.__SMRETARDOSV1 = true;
+
+  var ret = { registros: [], cargado: false, filtro: '' };
+
+  function esc2(v){ return (v===null||v===undefined) ? '' : String(v); }
+  function fmtDate2(v){ if(!v) return '—'; var d=new Date(v+'T00:00:00'); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+
+  function ensureDomRet(){
+    if (document.getElementById('rhPanelRetardos')) return;
+    var tabsBar = document.querySelector('.rh-tab')?.parentElement;
+    if (tabsBar) {
+      var span = document.createElement('span');
+      span.className = 'rh-tab';
+      span.id = 'rhTabRetardos';
+      span.setAttribute('onclick', "rhIrATab('retardos')");
+      span.textContent = 'Retardos';
+      tabsBar.appendChild(span);
+    }
+    var refPanel = document.getElementById('rhPanelPermisos') || document.getElementById('rhPanelVacaciones') || document.getElementById('rhPanelEvaluaciones');
+    var panel = document.createElement('div');
+    panel.id = 'rhPanelRetardos';
+    panel.style.display = 'none';
+    panel.innerHTML =
+      '<div style="margin:14px 0 6px;font-weight:700;font-size:16px;color:#111827;">⏰ Retardos</div>' +
+      '<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Historial de retardos del personal — 2026.</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">' +
+        '<input id="retBuscar" placeholder="Buscar por nombre o área..." style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;min-width:240px;" oninput="retFiltrar(this.value)">' +
+        '<div>' +
+          '<button id="retBtnNuevo" onclick="retAbrir(null)" style="background:#0f766e;color:#fff;border:none;border-radius:8px;padding:8px 14px;margin-right:8px;cursor:pointer;">+ Nuevo retardo</button>' +
+          '<button onclick="retExportExcel()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 14px;margin-right:8px;cursor:pointer;">Excel</button>' +
+          '<button onclick="retExportPdf()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 14px;cursor:pointer;">PDF</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="retTablaWrap" style="overflow-x:auto;"></div>' +
+      '<div id="retModalRoot"></div>';
+    if (refPanel && refPanel.parentElement) refPanel.parentElement.insertBefore(panel, refPanel.nextSibling);
+    else document.body.appendChild(panel);
+  }
+
+  window.retCargar = async function(){
+    ensureDomRet();
+    if (typeof sb === 'undefined') return;
+    var r = await sb.from('menlun_rh_retardos').select('*').order('empleado_nombre').order('fecha', {ascending:false});
+    ret.registros = (r && r.data) || [];
+    ret.cargado = true;
+    retRender();
+  };
+
+  window.retFiltrar = function(v){ ret.filtro = (v||'').toLowerCase(); retRender(); };
+
+  function retRender(){
+    var wrap = document.getElementById('retTablaWrap');
+    if (!wrap) return;
+    var rows = ret.registros.filter(function(r){
+      if (!ret.filtro) return true;
+      return (r.empleado_nombre||'').toLowerCase().indexOf(ret.filtro) !== -1 ||
+             (r.area||'').toLowerCase().indexOf(ret.filtro) !== -1;
+    });
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb;">' +
+      '<th style="padding:8px;">Nombre</th><th style="padding:8px;">Área</th><th style="padding:8px;">Fecha</th>' +
+      '<th style="padding:8px;">Horario</th><th style="padding:8px;">Acciones</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+        '<td style="padding:8px;font-weight:600;">' + esc2(r.empleado_nombre) + '</td>' +
+        '<td style="padding:8px;color:#6b7280;">' + esc2(r.area || '—') + '</td>' +
+        '<td style="padding:8px;">' + fmtDate2(r.fecha) + '</td>' +
+        '<td style="padding:8px;">' + esc2(r.horario || '—') + '</td>' +
+        '<td style="padding:8px;white-space:nowrap;">' +
+          '<button onclick="retAbrir(\'' + r.id + '\')" style="background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;margin-right:6px;cursor:pointer;">Editar</button>' +
+          '<button onclick="retConfirmarEliminar(\'' + r.id + '\')" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;cursor:pointer;">Eliminar</button>' +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    if (!rows.length) html += '<div style="padding:20px;color:#9ca3af;text-align:center;">Sin registros.</div>';
+    wrap.innerHTML = html;
+  }
+
+  function modalShellRet(titulo, bodyHtml, onGuardar){
+    var root = document.getElementById('retModalRoot');
+    if (!root) return;
+    root.innerHTML =
+      '<div id="retOverlay" style="position:fixed;inset:0;background:rgba(17,24,39,.5);display:flex;align-items:center;justify-content:center;z-index:9999;">' +
+        '<div style="background:#fff;border-radius:12px;padding:20px 22px;width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;">' +
+          '<div style="font-weight:700;font-size:15px;margin-bottom:14px;">' + titulo + '</div>' +
+          '<div id="retModalBody">' + bodyHtml + '</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">' +
+            '<button onclick="retCerrarModal()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 16px;cursor:pointer;">Cancelar</button>' +
+            '<button id="retBtnGuardar" style="background:#0f766e;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;">Guardar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('retBtnGuardar').onclick = onGuardar;
+  }
+
+  window.retCerrarModal = function(){
+    var root = document.getElementById('retModalRoot');
+    if (root) root.innerHTML = '';
+  };
+
+  function fld2(label, id, value, type){
+    type = type || 'text';
+    return '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">' + label + '</label>' +
+      '<input id="' + id + '" type="' + type + '" value="' + esc2(value) + '" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;"></div>';
+  }
+
+  var empleadosCacheRet = null;
+  async function cargarEmpleadosRet(){
+    if (empleadosCacheRet) return empleadosCacheRet;
+    if (typeof sb === 'undefined') return [];
+    var r = await sb.from('menlun_rh_empleados').select('id,nombre').order('nombre');
+    empleadosCacheRet = (r && r.data) || [];
+    return empleadosCacheRet;
+  }
+
+  window.retAbrir = async function(id){
+    var r = id ? ret.registros.find(function(x){ return x.id === id; }) : null;
+    var empleados = await cargarEmpleadosRet();
+    var opciones = '<option value="">Selecciona empleado...</option>' + empleados.map(function(e){
+      return '<option value="' + e.id + '" ' + (r && r.empleado_id === e.id ? 'selected' : '') + '>' + esc2(e.nombre) + '</option>';
+    }).join('');
+    var body =
+      '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">Empleado</label>' +
+      '<select id="rfEmpleado" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;">' + opciones + '</select></div>' +
+      fld2('Área (opcional)', 'rfArea', r ? r.area : '') +
+      fld2('Fecha', 'rfFecha', r ? r.fecha : '', 'date') +
+      fld2('Horario (opcional)', 'rfHorario', r ? r.horario : '');
+    modalShellRet(r ? 'Editar retardo' : 'Nuevo retardo', body, function(){ retGuardar(id); });
+  };
+
+  window.retGuardar = async function(id){
+    if (typeof sb === 'undefined') return;
+    var empleadoId = document.getElementById('rfEmpleado').value;
+    var fecha = document.getElementById('rfFecha').value;
+    if (!empleadoId) { alert('Selecciona un empleado.'); return; }
+    if (!fecha) { alert('La fecha es obligatoria.'); return; }
+    var payload = {
+      empleado_id: empleadoId,
+      fecha: fecha,
+      horario: document.getElementById('rfHorario').value.trim() || null,
+      area: document.getElementById('rfArea').value.trim() || null
+    };
+    var res;
+    if (id) res = await sb.from('menlun_rh_retardos').update(payload).eq('id', id);
+    else res = await sb.from('menlun_rh_retardos').insert(payload);
+    if (res && res.error) { alert('Error al guardar: ' + res.error.message); return; }
+    retCerrarModal();
+    await retCargar();
+  };
+
+  window.retConfirmarEliminar = function(id){
+    var body = '<div style="color:#374151;">¿Eliminar este registro de retardo? Esta acción no se puede deshacer.</div>';
+    modalShellRet('Confirmar eliminación', body, function(){ retEliminar(id); });
+    var btn = document.getElementById('retBtnGuardar');
+    if (btn) { btn.textContent = 'Eliminar'; btn.style.background = '#dc2626'; }
+  };
+
+  window.retEliminar = async function(id){
+    if (typeof sb === 'undefined') return;
+    var res = await sb.from('menlun_rh_retardos').delete().eq('id', id);
+    if (res && res.error) { alert('Error al eliminar: ' + res.error.message); return; }
+    retCerrarModal();
+    await retCargar();
+  };
+
+  window.retExportExcel = function(){
+    if (typeof XLSX === 'undefined') return;
+    var data = ret.registros.map(function(r){
+      return { Nombre: r.empleado_nombre, Área: r.area, Fecha: r.fecha, Horario: r.horario };
+    });
+    var ws = XLSX.utils.json_to_sheet(data);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Retardos');
+    XLSX.writeFile(wb, 'retardos_menlun.xlsx');
+  };
+
+  window.retExportPdf = function(){
+    var JsPdfCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!JsPdfCtor) return;
+    var doc = new JsPdfCtor({ orientation: 'landscape' });
+    doc.setFontSize(13);
+    doc.text('Retardos — Operadora Química Menlun', 14, 14);
+    doc.setFontSize(9);
+    var y = 24;
+    doc.text(['Nombre','Área','Fecha','Horario'].join('   |   '), 14, y);
+    y += 6;
+    ret.registros.forEach(function(r){
+      if (y > 195) { doc.addPage(); y = 16; }
+      var line = [r.empleado_nombre, r.area || '', fmtDate2(r.fecha), r.horario || ''].join('  |  ');
+      doc.text(line, 14, y);
+      y += 5.5;
+    });
+    doc.save('retardos_menlun.pdf');
+  };
+
+  function showRetardosPanel(){
+    ensureDomRet();
+    var allPanels = document.querySelectorAll('[id^="rhPanel"]');
+    allPanels.forEach(function(p){ p.style.display = 'none'; });
+    var mine = document.getElementById('rhPanelRetardos');
+    if (mine) mine.style.display = 'block';
+    var tabsBar = document.getElementById('rhTabRetardos') ? document.getElementById('rhTabRetardos').parentElement : null;
+    if (tabsBar) {
+      [].forEach.call(tabsBar.children, function(t){
+        if (t.id === 'rhTabRetardos') t.classList.add('active'); else t.classList.remove('active');
+      });
+    }
+    if (!ret.cargado) retCargar(); else retRender();
+  }
+
+  function hookIrATabRet(){
+    var _orig = window.rhIrATab;
+    if (typeof _orig !== 'function') { setTimeout(hookIrATabRet, 500); return; }
+    if (_orig.__retWrapped) return;
+    var wrapped = function(tab){
+      if (tab === 'retardos') { showRetardosPanel(); return; }
+      _orig(tab);
+    };
+    wrapped.__retWrapped = true;
+    window.rhIrATab = wrapped;
+  }
+
+  function init(){
+    if (typeof window.rhIrATab === 'function') { ensureDomRet(); hookIrATabRet(); }
+    else setTimeout(init, 500);
+  }
+  init();
+})();
+
+</script>
+
+<script>
 /* SMCALIDADCERTV1: certificado de analisis por lote (formato PMPS) para Luis - Calidad */
 (function(){
   function esc(s){ return (s===null||s===undefined)?'':String(s); }
