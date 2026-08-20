@@ -4445,12 +4445,21 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
 
 <script>
 (function(){
-  // ================= SMHOMEV1: quitar "Ver tablero ejecutivo" y Bloqueos/Bitacora del Inicio (direccion/admin) =================
-  if (currentRole && currentRole !== 'direccion' && currentRole !== 'admin_sistemas') return;
-
+  // ================= SMHOMEV2: quitar "Ver tablero ejecutivo" y Bloqueos/Bitacora del Inicio (SOLO direccion/admin) =================
+  // Fix SMHOMEV1: el chequeo de currentRole se hacia una sola vez al cargar el script,
+  // antes del login (currentRole siempre null en ese momento), asi que nunca frenaba
+  // y terminaba ocultando homeActions para TODOS los roles, no solo Direccion/Admin.
+  function esDireccionOAdmin(){
+    return currentRole === 'direccion' || currentRole === 'admin_sistemas';
+  }
   function limpiarHomeActions(){
     var actions = document.getElementById('homeActions');
-    if (actions && actions.style.display !== 'none') { actions.style.display = 'none'; }
+    if (!actions) return;
+    if (esDireccionOAdmin()) {
+      if (actions.style.display !== 'none') actions.style.display = 'none';
+    } else {
+      if (actions.style.display === 'none') actions.style.display = '';
+    }
   }
   limpiarHomeActions();
   var _homeTries = 0;
