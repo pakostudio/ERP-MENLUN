@@ -9996,6 +9996,243 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
 </script>
 
 <script>
+/* SMPERMISOSV1 - Modulo Permisos y faltas dentro de RH (Mirna) - editable, historico real 2023-2026 */
+(function(){
+  if (window.__SMPERMISOSV1) return;
+  window.__SMPERMISOSV1 = true;
+
+  var per = { registros: [], cargado: false, filtro: '' };
+
+  function esc(v){ return (v===null||v===undefined) ? '' : String(v); }
+  function fmtDate(v){ if(!v) return '—'; var d=new Date(v+'T00:00:00'); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+
+  function ensureDom(){
+    if (document.getElementById('rhPanelPermisos')) return;
+    var tabsBar = document.querySelector('.rh-tab')?.parentElement;
+    if (tabsBar) {
+      var span = document.createElement('span');
+      span.className = 'rh-tab';
+      span.id = 'rhTabPermisos';
+      span.setAttribute('onclick', "rhIrATab('permisos')");
+      span.textContent = 'Permisos';
+      tabsBar.appendChild(span);
+    }
+    var refPanel = document.getElementById('rhPanelVacaciones') || document.getElementById('rhPanelEvaluaciones') || document.getElementById('rhPanelCapacitacion');
+    var panel = document.createElement('div');
+    panel.id = 'rhPanelPermisos';
+    panel.style.display = 'none';
+    panel.innerHTML =
+      '<div style="margin:14px 0 6px;font-weight:700;font-size:16px;color:#111827;">📝 Permisos y faltas</div>' +
+      '<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Historial de permisos, salidas y faltas del personal — 2023-2026.</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">' +
+        '<input id="perBuscar" placeholder="Buscar por nombre o motivo..." style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;min-width:240px;" oninput="perFiltrar(this.value)">' +
+        '<div>' +
+          '<button id="perBtnNuevo" onclick="perAbrir(null)" style="background:#0f766e;color:#fff;border:none;border-radius:8px;padding:8px 14px;margin-right:8px;cursor:pointer;">+ Nuevo permiso</button>' +
+          '<button onclick="perExportExcel()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 14px;margin-right:8px;cursor:pointer;">Excel</button>' +
+          '<button onclick="perExportPdf()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 14px;cursor:pointer;">PDF</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="perTablaWrap" style="overflow-x:auto;"></div>' +
+      '<div id="perModalRoot"></div>';
+    if (refPanel && refPanel.parentElement) refPanel.parentElement.insertBefore(panel, refPanel.nextSibling);
+    else document.body.appendChild(panel);
+  }
+
+  window.perCargar = async function(){
+    ensureDom();
+    if (typeof sb === 'undefined') return;
+    var r = await sb.from('menlun_rh_permisos').select('*').order('empleado_nombre').order('fecha', {ascending:false});
+    per.registros = (r && r.data) || [];
+    per.cargado = true;
+    perRender();
+  };
+
+  window.perFiltrar = function(v){ per.filtro = (v||'').toLowerCase(); perRender(); };
+
+  function perRender(){
+    var wrap = document.getElementById('perTablaWrap');
+    if (!wrap) return;
+    var rows = per.registros.filter(function(r){
+      if (!per.filtro) return true;
+      return (r.empleado_nombre||'').toLowerCase().indexOf(per.filtro) !== -1 ||
+             (r.motivo||'').toLowerCase().indexOf(per.filtro) !== -1;
+    });
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb;">' +
+      '<th style="padding:8px;">Nombre</th><th style="padding:8px;">Fecha</th><th style="padding:8px;">Horario</th>' +
+      '<th style="padding:8px;">Horas ocupadas</th><th style="padding:8px;">Motivo</th><th style="padding:8px;">Acciones</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+        '<td style="padding:8px;font-weight:600;">' + esc(r.empleado_nombre) + '</td>' +
+        '<td style="padding:8px;">' + fmtDate(r.fecha) + '</td>' +
+        '<td style="padding:8px;">' + esc(r.horario || '—') + '</td>' +
+        '<td style="padding:8px;">' + esc(r.horas_ocupadas || '—') + '</td>' +
+        '<td style="padding:8px;color:#6b7280;">' + esc(r.motivo || '—') + '</td>' +
+        '<td style="padding:8px;white-space:nowrap;">' +
+          '<button onclick="perAbrir(\'' + r.id + '\')" style="background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;margin-right:6px;cursor:pointer;">Editar</button>' +
+          '<button onclick="perConfirmarEliminar(\'' + r.id + '\')" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:6px;padding:4px 10px;cursor:pointer;">Eliminar</button>' +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    if (!rows.length) html += '<div style="padding:20px;color:#9ca3af;text-align:center;">Sin registros.</div>';
+    wrap.innerHTML = html;
+  }
+
+  function modalShell(titulo, bodyHtml, onGuardar){
+    var root = document.getElementById('perModalRoot');
+    if (!root) return;
+    root.innerHTML =
+      '<div id="perOverlay" style="position:fixed;inset:0;background:rgba(17,24,39,.5);display:flex;align-items:center;justify-content:center;z-index:9999;">' +
+        '<div style="background:#fff;border-radius:12px;padding:20px 22px;width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;">' +
+          '<div style="font-weight:700;font-size:15px;margin-bottom:14px;">' + titulo + '</div>' +
+          '<div id="perModalBody">' + bodyHtml + '</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">' +
+            '<button onclick="perCerrarModal()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 16px;cursor:pointer;">Cancelar</button>' +
+            '<button id="perBtnGuardar" style="background:#0f766e;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;">Guardar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('perBtnGuardar').onclick = onGuardar;
+  }
+
+  window.perCerrarModal = function(){
+    var root = document.getElementById('perModalRoot');
+    if (root) root.innerHTML = '';
+  };
+
+  function fld(label, id, value, type){
+    type = type || 'text';
+    return '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">' + label + '</label>' +
+      '<input id="' + id + '" type="' + type + '" value="' + esc(value) + '" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;"></div>';
+  }
+
+  var empleadosCache = null;
+  async function cargarEmpleados(){
+    if (empleadosCache) return empleadosCache;
+    if (typeof sb === 'undefined') return [];
+    var r = await sb.from('menlun_rh_empleados').select('id,nombre').order('nombre');
+    empleadosCache = (r && r.data) || [];
+    return empleadosCache;
+  }
+
+  window.perAbrir = async function(id){
+    var r = id ? per.registros.find(function(x){ return x.id === id; }) : null;
+    var empleados = await cargarEmpleados();
+    var opciones = '<option value="">Selecciona empleado...</option>' + empleados.map(function(e){
+      return '<option value="' + e.id + '" ' + (r && r.empleado_id === e.id ? 'selected' : '') + '>' + esc(e.nombre) + '</option>';
+    }).join('');
+    var body =
+      '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">Empleado</label>' +
+      '<select id="pfEmpleado" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;">' + opciones + '</select></div>' +
+      fld('Fecha', 'pfFecha', r ? r.fecha : '', 'date') +
+      fld('Horario (opcional)', 'pfHorario', r ? r.horario : '') +
+      fld('Horas ocupadas (opcional)', 'pfHoras', r ? r.horas_ocupadas : '') +
+      fld('Motivo (opcional)', 'pfMotivo', r ? r.motivo : '');
+    modalShell(r ? 'Editar permiso' : 'Nuevo permiso', body, function(){ perGuardar(id); });
+  };
+
+  window.perGuardar = async function(id){
+    if (typeof sb === 'undefined') return;
+    var empleadoId = document.getElementById('pfEmpleado').value;
+    var fecha = document.getElementById('pfFecha').value;
+    if (!empleadoId) { alert('Selecciona un empleado.'); return; }
+    if (!fecha) { alert('La fecha es obligatoria.'); return; }
+    var payload = {
+      empleado_id: empleadoId,
+      fecha: fecha,
+      horario: document.getElementById('pfHorario').value.trim() || null,
+      horas_ocupadas: document.getElementById('pfHoras').value.trim() || null,
+      motivo: document.getElementById('pfMotivo').value.trim() || null
+    };
+    var res;
+    if (id) res = await sb.from('menlun_rh_permisos').update(payload).eq('id', id);
+    else res = await sb.from('menlun_rh_permisos').insert(payload);
+    if (res && res.error) { alert('Error al guardar: ' + res.error.message); return; }
+    perCerrarModal();
+    await perCargar();
+  };
+
+  window.perConfirmarEliminar = function(id){
+    var body = '<div style="color:#374151;">¿Eliminar este registro de permiso? Esta acción no se puede deshacer.</div>';
+    modalShell('Confirmar eliminación', body, function(){ perEliminar(id); });
+    var btn = document.getElementById('perBtnGuardar');
+    if (btn) { btn.textContent = 'Eliminar'; btn.style.background = '#dc2626'; }
+  };
+
+  window.perEliminar = async function(id){
+    if (typeof sb === 'undefined') return;
+    var res = await sb.from('menlun_rh_permisos').delete().eq('id', id);
+    if (res && res.error) { alert('Error al eliminar: ' + res.error.message); return; }
+    perCerrarModal();
+    await perCargar();
+  };
+
+  window.perExportExcel = function(){
+    if (typeof XLSX === 'undefined') return;
+    var data = per.registros.map(function(r){
+      return { Nombre: r.empleado_nombre, Fecha: r.fecha, Horario: r.horario, 'Horas ocupadas': r.horas_ocupadas, Motivo: r.motivo };
+    });
+    var ws = XLSX.utils.json_to_sheet(data);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Permisos');
+    XLSX.writeFile(wb, 'permisos_menlun.xlsx');
+  };
+
+  window.perExportPdf = function(){
+    var JsPdfCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!JsPdfCtor) return;
+    var doc = new JsPdfCtor({ orientation: 'landscape' });
+    doc.setFontSize(13);
+    doc.text('Permisos y faltas — Operadora Química Menlun', 14, 14);
+    doc.setFontSize(9);
+    var y = 24;
+    doc.text(['Nombre','Fecha','Horario','Horas','Motivo'].join('   |   '), 14, y);
+    y += 6;
+    per.registros.forEach(function(r){
+      if (y > 195) { doc.addPage(); y = 16; }
+      var line = [r.empleado_nombre, fmtDate(r.fecha), r.horario || '', r.horas_ocupadas || '', (r.motivo||'').slice(0,50)].join('  |  ');
+      doc.text(line, 14, y);
+      y += 5.5;
+    });
+    doc.save('permisos_menlun.pdf');
+  };
+
+  function showPermisosPanel(){
+    ensureDom();
+    var allPanels = document.querySelectorAll('[id^="rhPanel"]');
+    allPanels.forEach(function(p){ p.style.display = 'none'; });
+    var mine = document.getElementById('rhPanelPermisos');
+    if (mine) mine.style.display = 'block';
+    var tabsBar = document.getElementById('rhTabPermisos') ? document.getElementById('rhTabPermisos').parentElement : null;
+    if (tabsBar) {
+      [].forEach.call(tabsBar.children, function(t){
+        if (t.id === 'rhTabPermisos') t.classList.add('active'); else t.classList.remove('active');
+      });
+    }
+    if (!per.cargado) perCargar(); else perRender();
+  }
+
+  function hookIrATab(){
+    var _orig = window.rhIrATab;
+    if (typeof _orig !== 'function') { setTimeout(hookIrATab, 500); return; }
+    if (_orig.__perWrapped) return;
+    var wrapped = function(tab){
+      if (tab === 'permisos') { showPermisosPanel(); return; }
+      _orig(tab);
+    };
+    wrapped.__perWrapped = true;
+    window.rhIrATab = wrapped;
+  }
+
+  function init(){
+    if (typeof window.rhIrATab === 'function') { ensureDom(); hookIrATab(); }
+    else setTimeout(init, 500);
+  }
+  init();
+})();
+</script>
+
+<script>
 /* SMCALIDADCERTV1: certificado de analisis por lote (formato PMPS) para Luis - Calidad */
 (function(){
   function esc(s){ return (s===null||s===undefined)?'':String(s); }
