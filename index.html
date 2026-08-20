@@ -2078,6 +2078,17 @@ async function abrirNuevaSolicitud(){
       </select>
     </div>
     <div class="sol-form-row"><label>Fecha de entrega deseada (opcional)</label><input type="date" id="nsFechaEntrega"></div>
+    <div class="sol-form-row" style="display:flex;gap:8px">
+      <div style="flex:1"><label>Precio (opcional)</label><input type="number" step="0.01" id="nsPrecio" placeholder="0.00"></div>
+      <div style="flex:1"><label>Moneda</label>
+        <select id="nsMoneda">
+          <option value="MXN">MXN</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+        </select>
+      </div>
+    </div>
+    <div class="sol-form-row"><label>Presentación (opcional)</label><input type="text" id="nsPresentacion" placeholder="Ej. Tambo 200L, Bulto 25kg"></div>
     <div class="sol-form-row"><label>Proveedor (opcional)</label><select id="nsProveedor">${opcionesProveedor}</select></div>
     <div class="sol-form-row"><label>Notas (opcional)</label><textarea id="nsNotas" rows="2"></textarea></div>
     <div class="sol-form-actions">
@@ -2098,6 +2109,12 @@ async function guardarNuevaSolicitud(){
   const notas = document.getElementById('nsNotas').value.trim();
   const fechaEntregaEl = document.getElementById('nsFechaEntrega');
   const fechaEntrega = fechaEntregaEl ? (fechaEntregaEl.value || null) : null;
+  const precioEl = document.getElementById('nsPrecio');
+  const precio = precioEl && precioEl.value !== '' ? parseFloat(precioEl.value) : null;
+  const monedaEl = document.getElementById('nsMoneda');
+  const moneda = monedaEl ? monedaEl.value : 'MXN';
+  const presentacionEl = document.getElementById('nsPresentacion');
+  const presentacion = presentacionEl ? presentacionEl.value.trim() : '';
   var __uidNuevaSol = null;
   try { const __userRes = await sb.auth.getUser(); __uidNuevaSol = (__userRes && __userRes.data && __userRes.data.user) ? __userRes.data.user.id : null; } catch(e) {}
   if(!producto){ showToast('Escribe qué producto necesitas'); return; }
@@ -2106,6 +2123,7 @@ async function guardarNuevaSolicitud(){
     producto_nombre: producto, cantidad, unidad: unidad||null,
     jefatura_solicitante: jefatura||null, urgencia, estatus:'solicitado',
     proveedor_id: proveedorId, notas: notas||null,
+    costo_estimado: precio, moneda: moneda||null, presentacion: presentacion||null,
     solicitado_por: (typeof currentUsuarioId !== 'undefined' && currentUsuarioId ? currentUsuarioId : __uidNuevaSol), fecha_necesaria: fechaEntrega
   });
   if(error){ showToast('Error al crear: '+error.message); return; }
@@ -2143,6 +2161,18 @@ async function abrirDetalleSolicitud(id, opts){
         <option value="emergencia" ${r.urgencia==='emergencia'?'selected':''}>Emergencia</option>
       </select>
     </div>
+    <div class="sol-form-row"><label>Fecha de la solicitud</label><input type="date" id="dsFecha" value="${r.fecha_necesaria||''}"></div>
+    <div class="sol-form-row" style="display:flex;gap:8px">
+      <div style="flex:1"><label>Precio</label><input type="number" step="0.01" id="dsPrecio" value="${r.costo_estimado!=null?r.costo_estimado:''}"></div>
+      <div style="flex:1"><label>Moneda</label>
+        <select id="dsMoneda">
+          <option value="MXN" ${(r.moneda||'MXN')==='MXN'?'selected':''}>MXN</option>
+          <option value="USD" ${r.moneda==='USD'?'selected':''}>USD</option>
+          <option value="EUR" ${r.moneda==='EUR'?'selected':''}>EUR</option>
+        </select>
+      </div>
+    </div>
+    <div class="sol-form-row"><label>Presentación</label><input type="text" id="dsPresentacion" value="${(r.presentacion||'').replace(/"/g,'&quot;')}"></div>
     <div class="sol-form-row"><label>Proveedor</label><select id="dsProveedor">${opcionesProveedor}</select></div>
     <div class="sol-form-row"><label>Notas</label><textarea id="dsNotas" rows="2">${r.notas||''}</textarea></div>
     <div class="sol-form-actions">
@@ -2163,12 +2193,22 @@ async function guardarDetalleSolicitud(id){
   const urgencia = document.getElementById('dsUrgencia').value;
   const proveedorId = document.getElementById('dsProveedor').value || null;
   const notas = document.getElementById('dsNotas').value.trim();
+  const fechaEl = document.getElementById('dsFecha');
+  const fecha = fechaEl ? (fechaEl.value || null) : null;
+  const precioEl = document.getElementById('dsPrecio');
+  const precio = precioEl && precioEl.value !== '' ? parseFloat(precioEl.value) : null;
+  const monedaEl = document.getElementById('dsMoneda');
+  const moneda = monedaEl ? monedaEl.value : null;
+  const presentacionEl = document.getElementById('dsPresentacion');
+  const presentacion = presentacionEl ? presentacionEl.value.trim() : '';
   if(!producto){ showToast('El producto no puede quedar vacío'); return; }
   if(etapa==='autorizado' && !proveedorId){ showToast('Liga un proveedor antes de autorizar'); return; }
   const { error } = await sb.from(TBL.compras_solicitudes).update({
     producto_nombre: producto, cantidad: cantidad||null, unidad: unidad||null,
     jefatura_solicitante: jefatura||null, estatus: etapa, urgencia,
-    proveedor_id: proveedorId, notas: notas||null, updated_at: new Date().toISOString()
+    proveedor_id: proveedorId, notas: notas||null, fecha_necesaria: fecha,
+    costo_estimado: precio, moneda: moneda||null, presentacion: presentacion||null,
+    updated_at: new Date().toISOString()
   }).eq('id', id);
   if(error){ showToast('Error al guardar: '+error.message); return; }
   showToast('Solicitud actualizada');
