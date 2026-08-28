@@ -3611,11 +3611,20 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
         fichaFieldRow('Proveedor', 'proveedor_texto', r.proveedor_texto) +
         fichaFieldRow('Comentarios', 'comentarios', r.comentarios) +
       '</div>' +
-      '<div style="margin-top:16px;display:flex;gap:10px">' +
+      '<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">' +
         '<button id="btnEditarMP" class="btn-mini" style="display:inline-flex;align-items:center;gap:6px"><i class="ti ti-edit"></i>Editar</button>' +
         '<button id="btnGuardarMP" class="btn-mini" style="display:none;align-items:center;gap:6px;background:#16a34a;color:#fff"><i class="ti ti-device-floppy"></i>Guardar</button>' +
+        (r.estado_reorden === 'REORDENAR' ? '<button id="btnGenerarSolMP" class="btn-mini" style="display:inline-flex;align-items:center;gap:6px;background:#dc2626;color:#fff"><i class="ti ti-shopping-cart-plus"></i>Generar solicitud de compra</button>' : '') +
       '</div>';
     openModal(body, { width: '460px' });
+
+    var btnGenSolMP = document.getElementById('btnGenerarSolMP');
+    if(btnGenSolMP){
+      btnGenSolMP.addEventListener('click', function(){
+        closeModal();
+        if(typeof generarSolicitudDesdeAlmacen === 'function') generarSolicitudDesdeAlmacen(r.producto_clave, r.producto_nombre, r.unidad);
+      });
+    }
 
     document.getElementById('btnEditarMP').addEventListener('click', function(){
       document.querySelectorAll('#fichaMPBody .ficha-view').forEach(function(v){ v.style.display='none'; });
