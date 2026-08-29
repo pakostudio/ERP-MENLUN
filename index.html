@@ -2662,9 +2662,11 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
   const elProd = document.getElementById('nsProducto');
   const elUnidad = document.getElementById('nsUnidad');
   const elUrg = document.getElementById('nsUrgencia');
+  const elJef = document.getElementById('nsJefatura');
   if(elProd) elProd.value = nombre;
   if(elUnidad) elUnidad.value = unidad||'';
   if(elUrg) elUrg.value = 'critica';
+  if(elJef && !elJef.value) elJef.value = 'Almacen';
   showToast('Formulario precargado desde Almacen - revisa cantidad y proveedor');
 }
 </script>
