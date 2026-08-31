@@ -3377,7 +3377,7 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
     if(uid){
       var res = await c.from('menlun_compras_solicitudes')
         .select('id,producto_nombre,cantidad,unidad,urgencia,estatus,proveedor,created_at,fecha_necesaria')
-        .ilike('jefatura_solicitante', 'ALMACEN IZCALLI')
+        .ilike('jefatura_solicitante', '%almacen%')
         .order('created_at', { ascending: false });
       rows = res.data || [];
     }
