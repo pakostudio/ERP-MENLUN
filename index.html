@@ -8028,7 +8028,7 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
         estatus: estatus.toLowerCase(), fecha_liberacion: new Date().toISOString(), notas: payload.observaciones
       });
     } catch(e) {}
-    calLiberaciones.unshift(resp.data);
+    await calCargar();
     if(typeof showToast === 'function') showToast(lote+': '+estatus);
     document.getElementById('calLibLote').value='';
     document.getElementById('calLibApariencia').value='';
@@ -8349,15 +8349,7 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
       resp = await sb.from('menlun_calidad_productos').insert(payload).select().single();
     }
     if(resp.error){ msgEl.style.color='#dc2626'; msgEl.textContent='Error: '+resp.error.message; return; }
-    if(calProdEditState.id){
-      var idx = calProductos.findIndex(function(x){ return x.id===calProdEditState.id; });
-      if(idx>=0) calProductos[idx] = resp.data;
-    } else {
-      calProductos.push(resp.data);
-    }
-    calProductos.sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); });
-    calRenderProductos();
-    calRenderSelectProducto();
+    await calCargar();
     if(typeof showToast === 'function') showToast('Producto guardado: '+nombre);
     calCerrarProducto();
   };
