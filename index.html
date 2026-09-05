@@ -7600,15 +7600,20 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
     setTimeout(function(){ if (el.textContent===texto) el.textContent=''; }, 5000);
   }
 
+  var intentosCarga = 0;
   async function cargar(){
     if (cargando) return;
     cargando = true;
     try {
       var r = await llamar('listar');
       usuarios = r.usuarios || [];
+      intentosCarga = 0;
     } catch(e){
-      usuarios = [];
-      msg('No se pudo cargar la lista de usuarios: ' + e.message, true);
+      intentosCarga++;
+      usuarios = null; // no se marca como "vacio": permite que tick() reintente solo
+      if (intentosCarga >= 3){
+        msg('No se pudo cargar la lista de usuarios: ' + e.message + ' (reintentando...)', true);
+      }
     }
     cargando = false;
     render();
@@ -7697,7 +7702,8 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
   function render(){
     renderMonitoreo();
     var cont = document.getElementById('usGrid');
-    if (!cont || !usuarios) return;
+    if (!cont) return;
+    if (usuarios === null){ cont.innerHTML = '<div style="padding:14px;color:var(--text2);">Cargando usuarios...</div>'; return; }
     if (!usuarios.length){ cont.innerHTML = '<div style="padding:14px;color:var(--text2);">Sin usuarios.</div>'; return; }
     cont.innerHTML = usuarios.map(tarjeta).join('');
   }
