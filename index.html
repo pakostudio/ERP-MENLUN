@@ -10610,6 +10610,270 @@ async function generarSolicitudDesdeAlmacen(clave, nombre, unidad){
   };
 })();
 </script>
+<script>
+/* SMRHGRAFICASV1 - Panel de Graficas RH + Ingresos/horas capacitacion + asistentes por sesion (peticion Mirna) */
+(function(){
+  if (window.__SMRHGRAFICASV1) return;
+  window.__SMRHGRAFICASV1 = true;
+
+  function esc(v){ return (v===null||v===undefined) ? '' : String(v); }
+  function fmtDate(v){ if(!v) return '—'; var d=new Date(v+'T00:00:00'); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+
+  function ensureChartRH(){
+    return new Promise(function(resolve){
+      if (window.Chart) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+      s.onload = function(){ resolve(); };
+      s.onerror = function(){ resolve(); };
+      document.head.appendChild(s);
+    });
+  }
+
+  var rhg = { cargado:false, cargando:false, empleados:[], permisos:[], retardos:[], sesiones:[], expand:{} };
+  var chartRefs = {};
+  function destroyChart(id){ if (chartRefs[id]) { try{ chartRefs[id].destroy(); }catch(e){} chartRefs[id]=null; } }
+  function anioActual(){ return new Date().getFullYear(); }
+
+  function ensureDom(){
+    if (document.getElementById('rhPanelGraficas')) return;
+    var anyTab = document.querySelector('.rh-tab');
+    var tabsBar = anyTab ? anyTab.parentElement : null;
+    if (tabsBar && !document.getElementById('rhTabGraficas')) {
+      var span = document.createElement('span');
+      span.className = 'rh-tab';
+      span.id = 'rhTabGraficas';
+      span.setAttribute('onclick', "rhIrATab('graficas')");
+      span.innerHTML = '<i class="ti ti-chart-bar"></i> Graficas';
+      tabsBar.appendChild(span);
+    }
+    var pagina = document.getElementById('page-rh');
+    if (!pagina) return;
+    var panel = document.createElement('div');
+    panel.id = 'rhPanelGraficas';
+    panel.className = 'rh-panel';
+    panel.style.display = 'none';
+    panel.innerHTML =
+      '<div style="margin:14px 0 6px;font-weight:700;font-size:16px;color:#111827;">Graficas de RH</div>' +
+      '<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Ausentismo, escolaridad, capacitacion e ingresos del ano en curso (' + anioActual() + ').</div>' +
+      '<div id="rhgKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px;"></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px;margin-bottom:26px;">' +
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">Faltas y permisos por area</div><canvas id="rhgChartAusencias" height="220"></canvas></div>' +
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">Escolaridad (activos)</div><canvas id="rhgChartEscolaridad" height="220"></canvas></div>' +
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">Horas de capacitacion por colaborador (top 15)</div><canvas id="rhgChartHorasColab" height="220"></canvas></div>' +
+        '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">Capacitaciones internas vs externas</div><canvas id="rhgChartTipo" height="220"></canvas></div>' +
+      '</div>' +
+      '<div style="margin-bottom:10px;font-weight:700;font-size:15px;color:#111827;">Ingresos del ano y horas de capacitacion recibidas</div>' +
+      '<div id="rhgIngresosTabla" style="margin-bottom:26px;"></div>' +
+      '<div style="margin-bottom:10px;font-weight:700;font-size:15px;color:#111827;">Sesiones de capacitacion y asistentes (' + anioActual() + ')</div>' +
+      '<div id="rhgSesionesTabla"></div>';
+    pagina.appendChild(panel);
+  }
+
+  async function cargar(){
+    if (rhg.cargando) return;
+    rhg.cargando = true;
+    var c = sb;
+    var results = await Promise.all([
+      c.from('menlun_rh_empleados').select('id,nombre,area,escolaridad,status,fecha_ingreso'),
+      c.from('menlun_rh_permisos').select('empleado_id,empleado_nombre,fecha'),
+      c.from('menlun_rh_retardos').select('empleado_nombre,area,fecha'),
+      c.from('menlun_rh_capacitacion_sesiones').select('curso,fecha,tipo,instructor,horas_curso,total_hrs,asistentes').order('fecha',{ascending:false})
+    ]);
+    rhg.empleados = (results[0] && results[0].data) || [];
+    rhg.permisos = (results[1] && results[1].data) || [];
+    rhg.retardos = (results[2] && results[2].data) || [];
+    rhg.sesiones = (results[3] && results[3].data) || [];
+    rhg.cargado = true;
+    rhg.cargando = false;
+    await render();
+  }
+
+  async function render(){
+    await ensureChartRH();
+    var anio = anioActual();
+
+    var empArea = {}, empNombreArea = {};
+    rhg.empleados.forEach(function(e){
+      empArea[e.id] = e.area || 'Sin area';
+      empNombreArea[(e.nombre||'').trim().toLowerCase()] = e.area || 'Sin area';
+    });
+
+    /* 1) Faltas y permisos por area */
+    var porArea = {};
+    rhg.permisos.forEach(function(p){
+      var area = empArea[p.empleado_id] || empNombreArea[(p.empleado_nombre||'').trim().toLowerCase()] || 'Sin area';
+      porArea[area] = porArea[area] || {permisos:0, faltas:0};
+      porArea[area].permisos++;
+    });
+    rhg.retardos.forEach(function(r){
+      var area = r.area || empNombreArea[(r.empleado_nombre||'').trim().toLowerCase()] || 'Sin area';
+      porArea[area] = porArea[area] || {permisos:0, faltas:0};
+      porArea[area].faltas++;
+    });
+    var areasLabels = Object.keys(porArea);
+    if (window.Chart) {
+      destroyChart('aus');
+      var elAus = document.getElementById('rhgChartAusencias');
+      if (elAus) chartRefs.aus = new Chart(elAus, {
+        type:'bar',
+        data:{ labels:areasLabels, datasets:[
+          {label:'Permisos', data:areasLabels.map(function(a){return porArea[a].permisos;}), backgroundColor:'#0ea5a5'},
+          {label:'Retardos', data:areasLabels.map(function(a){return porArea[a].faltas;}), backgroundColor:'#dc2626'}
+        ]},
+        options:{ responsive:true, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true, ticks:{precision:0}}} }
+      });
+    }
+
+    /* 2) Escolaridad */
+    var porEscolaridad = {};
+    rhg.empleados.filter(function(e){return e.status==='activo';}).forEach(function(e){
+      var k = e.escolaridad || 'Sin dato';
+      porEscolaridad[k] = (porEscolaridad[k]||0) + 1;
+    });
+    if (window.Chart) {
+      destroyChart('esc');
+      var elEsc = document.getElementById('rhgChartEscolaridad');
+      if (elEsc) chartRefs.esc = new Chart(elEsc, {
+        type:'doughnut',
+        data:{ labels:Object.keys(porEscolaridad), datasets:[{data:Object.values(porEscolaridad), backgroundColor:['#0ea5a5','#0f766e','#14b8a6','#d97706','#dc2626','#6366f1','#94a3b8','#ec4899']}]},
+        options:{ responsive:true, plugins:{legend:{position:'bottom'}} }
+      });
+    }
+
+    /* 3) Horas por colaborador (ano actual) + totales + internas/externas */
+    var sesionesAnio = rhg.sesiones.filter(function(s){ return s.fecha && String(s.fecha).indexOf(String(anio))===0; });
+    var horasPorPersona = {};
+    var personasSet = {};
+    var totalHoras = 0;
+    var internas = 0, externas = 0;
+    sesionesAnio.forEach(function(s){
+      var h = Number(s.horas_curso)||0;
+      (s.asistentes||[]).forEach(function(nombre){
+        horasPorPersona[nombre] = (horasPorPersona[nombre]||0) + h;
+        personasSet[nombre] = true;
+      });
+      totalHoras += Number(s.total_hrs)||0;
+      if ((s.tipo||'').toLowerCase().indexOf('extern')>=0) externas++; else internas++;
+    });
+    var topPersonas = Object.keys(horasPorPersona).sort(function(a,b){ return horasPorPersona[b]-horasPorPersona[a]; }).slice(0,15);
+    if (window.Chart) {
+      destroyChart('horas');
+      var elHoras = document.getElementById('rhgChartHorasColab');
+      if (elHoras) chartRefs.horas = new Chart(elHoras, {
+        type:'bar',
+        data:{ labels:topPersonas, datasets:[{label:'Horas', data:topPersonas.map(function(n){return horasPorPersona[n];}), backgroundColor:'#0f766e'}]},
+        options:{ indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+      });
+
+      destroyChart('tipo');
+      var elTipo = document.getElementById('rhgChartTipo');
+      if (elTipo) chartRefs.tipo = new Chart(elTipo, {
+        type:'pie',
+        data:{ labels:['Internas','Externas'], datasets:[{data:[internas, externas], backgroundColor:['#0ea5a5','#f59e0b']}]},
+        options:{ responsive:true, plugins:{legend:{position:'bottom'}} }
+      });
+    }
+
+    var kpis = document.getElementById('rhgKpis');
+    if (kpis) {
+      function card(l,v){ return '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;"><div style="font-size:11px;color:#6b7280;">'+esc(l)+'</div><div style="font-size:20px;font-weight:800;color:#111827;">'+esc(v)+'</div></div>'; }
+      kpis.innerHTML = card('Personas capacitadas ('+anio+')', Object.keys(personasSet).length) +
+        card('Horas de capacitacion ('+anio+')', totalHoras.toFixed(0)) +
+        card('Capacitaciones internas', internas) +
+        card('Capacitaciones externas', externas);
+    }
+
+    /* Ingresos del anio + horas de capacitacion recibidas */
+    var ingresos = rhg.empleados.filter(function(e){ return e.fecha_ingreso && String(e.fecha_ingreso).indexOf(String(anio))===0; });
+    var contIng = document.getElementById('rhgIngresosTabla');
+    if (contIng) {
+      if (!ingresos.length) {
+        contIng.innerHTML = '<div style="padding:14px;color:#666;font-size:13px;">Sin ingresos registrados en ' + anio + '.</div>';
+      } else {
+        var filasIng = ingresos.map(function(e){
+          var horas = horasPorPersona[e.nombre] || 0;
+          return '<tr>' +
+            '<td style="padding:6px 10px">'+esc(e.nombre)+'</td>' +
+            '<td style="padding:6px 10px">'+esc(e.area||'-')+'</td>' +
+            '<td style="padding:6px 10px">'+fmtDate(e.fecha_ingreso)+'</td>' +
+            '<td style="padding:6px 10px;text-align:right">'+horas.toFixed(1)+'</td>' +
+          '</tr>';
+        }).join('');
+        contIng.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="text-align:left;color:#666;font-size:11px;text-transform:uppercase">' +
+          '<th style="padding:6px 10px">Nombre</th><th style="padding:6px 10px">Area</th><th style="padding:6px 10px">Fecha ingreso</th><th style="padding:6px 10px;text-align:right">Horas de capacitacion ('+anio+')</th>' +
+          '</tr></thead><tbody>'+filasIng+'</tbody></table>';
+      }
+    }
+
+    /* Sesiones + asistentes (expandible) */
+    var contSes = document.getElementById('rhgSesionesTabla');
+    if (contSes) {
+      if (!sesionesAnio.length) {
+        contSes.innerHTML = '<div style="padding:14px;color:#666;font-size:13px;">Sin sesiones registradas en ' + anio + '.</div>';
+      } else {
+        var filasSes = sesionesAnio.map(function(s, idx){
+          var abierto = !!rhg.expand[idx];
+          var asistentesTxt = (s.asistentes||[]).join(', ') || 'Sin asistentes registrados';
+          return '<tr>' +
+            '<td style="padding:6px 10px">'+esc(s.curso)+'</td>' +
+            '<td style="padding:6px 10px">'+fmtDate(s.fecha)+'</td>' +
+            '<td style="padding:6px 10px">'+esc(s.tipo||'-')+'</td>' +
+            '<td style="padding:6px 10px;text-align:right">'+esc(s.horas_curso!=null?s.horas_curso:'-')+'</td>' +
+            '<td style="padding:6px 10px;text-align:right">'+(s.asistentes||[]).length+'</td>' +
+            '<td style="padding:6px 10px;white-space:nowrap"><button onclick="window.__rhgToggle('+idx+')" style="padding:4px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:12px">'+(abierto?'Ocultar':'Ver asistentes')+'</button></td>' +
+          '</tr>' +
+          (abierto ? '<tr><td colspan="6" style="padding:8px 10px;background:#f9fafb;font-size:12.5px;color:#374151;">'+esc(asistentesTxt)+'</td></tr>' : '');
+        }).join('');
+        contSes.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="text-align:left;color:#666;font-size:11px;text-transform:uppercase">' +
+          '<th style="padding:6px 10px">Curso</th><th style="padding:6px 10px">Fecha</th><th style="padding:6px 10px">Tipo</th><th style="padding:6px 10px;text-align:right">Horas</th><th style="padding:6px 10px;text-align:right">Personas</th><th style="padding:6px 10px">Asistentes</th>' +
+          '</tr></thead><tbody>'+filasSes+'</tbody></table>';
+      }
+    }
+  }
+
+  window.__rhgToggle = function(idx){
+    rhg.expand[idx] = !rhg.expand[idx];
+    render();
+  };
+
+  function showGraficasPanel(){
+    ensureDom();
+    var allPanels = document.querySelectorAll('[id^="rhPanel"]');
+    allPanels.forEach(function(p){ p.style.display = 'none'; });
+    var mine = document.getElementById('rhPanelGraficas');
+    if (mine) mine.style.display = 'block';
+    var tabsBar = document.getElementById('rhTabGraficas') ? document.getElementById('rhTabGraficas').parentElement : null;
+    if (tabsBar) {
+      [].forEach.call(tabsBar.children, function(t){
+        if (t.id === 'rhTabGraficas') t.classList.add('active'); else t.classList.remove('active');
+      });
+    }
+    if (!rhg.cargado) cargar(); else render();
+  }
+
+  function hookIrATab(){
+    var _orig = window.rhIrATab;
+    if (typeof _orig !== 'function') { setTimeout(hookIrATab, 500); return; }
+    if (_orig.__rhgWrapped) return;
+    var wrapped = function(tab){
+      if (tab === 'graficas') { showGraficasPanel(); return; }
+      _orig(tab);
+    };
+    wrapped.__rhgWrapped = true;
+    window.rhIrATab = wrapped;
+  }
+
+  function init(){
+    if (typeof window.rhIrATab === 'function') { ensureDom(); hookIrATab(); }
+    else setTimeout(init, 500);
+  }
+  init();
+})();
+</script>
+
 </body>
 
 
