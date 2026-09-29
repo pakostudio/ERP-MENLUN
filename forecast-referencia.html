@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>ERP Menlun · Forecast Inteligente (Referencia)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#F4F6FA; color:#1E293B; margin:0; padding:0; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:16px 28px; border-bottom:1px solid #E2E8F0; background:#FFFFFF; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brand-name { font-weight:800; font-size:15px; color:#16233F; letter-spacing:0.3px; }
+  .brand-sub { font-size:11px; color:#94A3B8; }
+  .badge { font-size:12.5px; color:#64748B; background:#EEF2FF; padding:5px 12px; border-radius:999px; font-weight:600; }
+  .content { padding: 24px 28px 40px 28px; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+  .card { background:#FFFFFF; border:1px solid #E5E9F0; border-radius:12px; padding:16px 18px; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
+  .card-label { font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; font-weight:600; }
+  .card-value { font-size:26px; font-weight:800; color:#0F172A; }
+  .card-note { font-size:12px; color:#94A3B8; margin-top:4px; }
+  .card-note.up { color:#16A34A; font-weight:600; }
+  .card-note.accent { color:#2F6FED; font-weight:600; }
+  .section-title { font-size:12.5px; font-weight:700; color:#64748B; margin:26px 0 10px 0; text-transform:uppercase; letter-spacing:0.5px; }
+  .table-card { background:#FFFFFF; border:1px solid #E5E9F0; border-radius:12px; overflow:hidden; }
+  .row-head { display:grid; grid-template-columns:2fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.8fr; padding:10px 16px; font-size:11px; color:#94A3B8; text-transform:uppercase; font-weight:700; border-bottom:1px solid #EDF0F5; background:#FAFBFD; gap:6px; }
+  .row-head .cap-col { color:#2F6FED; }
+  .row { display:grid; grid-template-columns:2fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.8fr; align-items:center; padding:8px 16px; font-size:13px; border-bottom:1px solid #F1F4F8; gap:6px; }
+  .row:hover { background:#FAFBFD; }
+  .prod-name { color:#1E293B; font-weight:600; }
+  .ago-val { color:#64748B; font-weight:600; }
+  .fc-val { color:#0F172A; font-weight:700; }
+  .delta.up { color:#16A34A; font-weight:700; }
+  .delta.down { color:#DC2626; font-weight:700; }
+  .delta.flat { color:#94A3B8; font-weight:700; }
+  .cap-input { width:100%; border:1px solid #DCE3EF; border-radius:7px; padding:6px 8px; font-size:13px; font-weight:700; color:#16233F; background:#F3F7FF; text-align:center; }
+  .cap-input.empty { background:#FFF9EC; border-color:#F3D9A6; color:#94A3B8; font-weight:600; }
+  .cap-input:focus { outline:2px solid #2F6FED; background:#FFFFFF; }
+  .totals-bar { display:flex; justify-content:flex-end; gap:22px; padding:12px 16px; background:#FAFBFD; border-top:1px solid #EDF0F5; font-size:12.5px; color:#64748B; }
+  .totals-bar b { color:#16233F; font-size:14px; }
+  .foot-note { font-size:11.5px; color:#94A3B8; margin-top:16px; line-height:1.6; }
+  input[type=search] { border:1px solid #E2E8F0; border-radius:8px; padding:8px 12px; font-size:13px; width:260px; margin-bottom:14px; }
+  .rows-scroll { max-height:640px; overflow-y:auto; }
+  .intro-card { background:#FFFFFF; border:1px solid #E5E9F0; border-radius:12px; padding:22px 24px; margin-bottom:22px; }
+  .intro-title { font-size:16px; font-weight:800; color:#16233F; margin-bottom:6px; }
+  .intro-sub { font-size:13px; color:#64748B; margin-bottom:16px; line-height:1.5; }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .step { background:#F8FAFC; border:1px solid #EDF0F5; border-radius:10px; padding:14px 16px; }
+  .step-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#2F6FED; color:#fff; font-size:11px; font-weight:800; margin-bottom:8px; }
+  .step-title { font-size:13px; font-weight:700; color:#0F172A; margin-bottom:4px; }
+  .step-text { font-size:12.5px; color:#64748B; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 100 100">
+        <path d="M50 4 C38 20, 26 34, 26 50 C26 66, 37 78, 50 78 C63 78, 74 66, 74 50 C74 38, 65 27, 57 16 Z" fill="#16233F"/>
+        <path d="M50 34 C44 42, 39 49, 39 56 C39 63, 44 68, 50 68 C56 68, 61 63, 61 56 C61 50, 56 44, 50 34 Z" fill="#FFFFFF"/>
+        <path d="M50 40 C46 46, 43 51, 43 56 C43 61, 46 64, 50 64 C54 64, 57 61, 57 56 C57 51, 54 46, 50 40 Z" fill="#29ABE2"/>
+        <path d="M28 66 C34 74, 42 78, 50 78 C58 78, 66 74, 72 66 C64 72, 57 70, 50 70 C43 70, 36 72, 28 66 Z" fill="#29ABE2"/>
+      </svg>
+      <div>
+        <div class="brand-name">PMPS <span style="font-size:9px; vertical-align:super; font-weight:600;">&reg;</span></div>
+        <div class="brand-sub">ERP MENLUN &middot; Forecast Inteligente &mdash; Vista de referencia</div>
+      </div>
+    </div>
+    <span class="badge">Octubre 2026 &middot; 89 SKU activos</span>
+  </div>
+
+  <div class="content">
+
+    <div class="intro-card">
+      <div class="intro-title">¿Qué es esto?</div>
+      <div class="intro-sub">
+        Una vista de referencia del nuevo modelo de forecast, calculada con el histórico real de ventas marzo&ndash;agosto 2026. La idea: que cada quien ya no arranque el presupuesto de octubre desde cero, sino con una base numérica por producto que ustedes revisan y ajustan con su criterio.
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-title">Revisen la tendencia</div>
+          <div class="step-text">Cada producto trae su gráfica mar&ndash;ago y el número real de agosto, para ver hacia dónde va antes de decidir.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-title">Comparen contra el forecast sugerido</div>
+          <div class="step-text">La columna "Forecast oct" es el cálculo del modelo (promedio ponderado, más peso al mes más reciente), no una adivinanza.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-title">Ajusten octubre y vean cómo se mueve todo</div>
+          <div class="step-text">Al cambiar octubre, noviembre se recalcula solo (y diciembre con noviembre) usando el mismo modelo. Si escriben directo en nov/dic, esa celda ya no se mueve sola — queda como su número.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="card">
+        <div class="card-label">SKU con tendencia</div>
+        <div class="card-value">89</div>
+        <div class="card-note">de 271 totales (&ge;4 de 6 meses)</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Unidades vendidas mar-ago</div>
+        <div class="card-value">9,308</div>
+        <div class="card-note">nucleo recurrente</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Forecast octubre (89 SKU)</div>
+        <div class="card-value">1,629</div>
+        <div class="card-note accent">promedio ponderado 3-2-1</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Top 25 = % del nucleo</div>
+        <div class="card-value">81%</div>
+        <div class="card-note">del volumen total</div>
+      </div>
+    </div>
+
+    <div class="section-title">Buscar producto</div>
+    <input type="search" id="buscador" placeholder="Escribe el nombre de un producto...">
+
+    <div class="section-title">Nucleo completo de productos (89 SKU) &middot; forecast = 3&times;ago + 2&times;jul + 1&times;jun / 6</div>
+    <div class="table-card">
+      <div class="row-head">
+        <div>Producto</div><div>Tendencia mar-ago</div><div>Ago (real)</div><div>Forecast sugerido oct</div><div class="cap-col">Oct (captura)</div><div class="cap-col">Nov (captura)</div><div class="cap-col">Dic (captura)</div>
+      </div>
+      <div class="rows-scroll" id="rows"></div>
+      <div class="totals-bar">
+        <span>Total Oct capturado: <b id="tot-oct">0</b></span>
+        <span>Total Nov capturado: <b id="tot-nov">0</b></span>
+        <span>Total Dic capturado: <b id="tot-dic">0</b></span>
+      </div>
+    </div>
+
+    <div class="foot-note">
+      Datos reales del historico mar-ago 2026 (archivo de Jose Carlos). Forecast sugerido = promedio ponderado, mayor peso al mes mas reciente, sin datos inventados ni supuestos. Las columnas Oct/Nov/Dic son de captura libre &mdash; lo que escriban aqui es solo para revisar en esta vista y no se guarda ni se manda a ningun lado; la carga oficial del presupuesto sigue siendo en el Forecast del ERP, por asesor y producto, como ya lo hacen. Busca cualquier producto con el buscador de arriba.
+    </div>
+  </div>
+</div>
+
+<script>
+const products = [
+["Cl Alka, garrafón 25 Kg",107,101,109,148,173,111,138],
+["Oxi Star, garrafón 20 Kg",73,100,156,93,163,132,136],
+["H3 Super Foam, garrafon de 25kg",62,157,120,136,72,170,132],
+["Na Super Foam Alka, garrafón 25 Kg",109,96,101,103,97,90,94],
+["PM 800, garrafón de 25 Kg",102,48,86,86,85,90,88],
+["Cl Super Alka, garrafón 25 Kg",107,72,54,63,64,114,89],
+["Na Super Alka, garrafón 20 Kg",50,19,62,108,56,49,61],
+["PM Express, garrafón 20 kg",40,43,57,78,48,58,58],
+["PM 101 garrafon de 25 kg",54,63,51,72,36,45,46],
+["Cl Alka Plus, garrafón 25 Kg",38,58,31,58,57,29,43],
+["Clean Enzyme, garrafón 25 Kg",5,24,46,70,33,93,69],
+["PM Neutro, garrafón 25 kg",48,17,50,48,57,42,48],
+["Clor Star, garrafón 25 Kg",14,30,42,44,43,69,56],
+["PM Hand, garrafón de 20 kg",63,30,37,39,17,22,23],
+["PM Hand, caja c/4 galones",25,45,27,31,39,22,29],
+["Sany-Wype, caja c/6 piezas",15,65,26,23,29,26,26],
+["Quaternario, garrafón 20 kg",18,7,43,50,36,21,31],
+["Isoquat, garrafón 18 Kg",19,24,33,22,26,29,27],
+["PM 101, garrafón 60 Kg",25,26,15,28,17,27,24],
+["PM 400, garrafón 25 KG",14,5,23,13,43,20,26],
+["PM 101, tambor 250 Kg",23,23,18,11,20,19,18],
+["Na Super Foam Alka, garrafón 60 Kg",26,17,13,27,13,13,15],
+["Translub S, garrafon de 50kg",15,30,15,15,16,15,15],
+["Clor Star, garrafón 20 LT",30,6,10,7,30,10,16],
+["PM Gel, caja c/4 galones",7,27,12,13,11,10,11],
+["Antiespumante, garrafón 20 kg",6,2,16,28,11,4,15],
+["PM Foam, garrafón 25 kg",13,11,9,13,12,9,11],
+["Desengrasante Industrial, garrafón 25 kg",4,13,4,13,9,20,15],
+["Amonio Cuaternario, garrafón 20 kg",9,7,14,16,4,12,10],
+["Cl Neutro, garrafón 25 kg",5,11,16,9,12,8,10],
+];
+
+const wrapEl = document.getElementById('rows');
+const buscador = document.getElementById('buscador');
+
+function sparkline(data, color){
+  const w=100,h=26,max=Math.max(...data),min=Math.min(...data);
+  const pts = data.map((v,i)=>{
+    const x = (i/(data.length-1))*w;
+    const y = h - ((v-min)/((max-min)||1))*h;
+    return x+','+y;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// captura en memoria (persiste mientras el archivo esté abierto; es referencia, no vive en el ERP)
+// captura[i] = {oct, nov, dic, novTocado, dicTocado}
+const captura = {};
+function wma(a,b,c){ return Math.round((c*3 + b*2 + a*1)/6); } // a=más viejo, c=más reciente
+
+function valoresDe(i, p){
+  const c = captura[i] || {};
+  const [,,,jun,jul,ago,,fc] = p;
+  const oct = c.oct !== undefined ? c.oct : fc;
+  const novSugerido = wma(jul, ago, oct);
+  const nov = (c.novTocado && c.nov !== undefined) ? c.nov : novSugerido;
+  const dicSugerido = wma(ago, oct, nov);
+  const dic = (c.dicTocado && c.dic !== undefined) ? c.dic : dicSugerido;
+  return {oct, nov, dic, novEsSugerido: !c.novTocado, dicEsSugerido: !c.dicTocado};
+}
+
+function render(filter){
+  const f = (filter||'').toLowerCase();
+  wrapEl.innerHTML = products.map((p, i) => {
+    if (!p[0].toLowerCase().includes(f)) return '';
+    const [name,mar,abr,may,jun,jul,ago,fc] = p;
+    const v = valoresDe(i, p);
+    return `
+    <div class="row" data-idx="${i}">
+      <div class="prod-name">${name}</div>
+      <div>${sparkline([mar,abr,may,jun,jul,ago], "#2F6FED")}</div>
+      <div class="ago-val">${ago}</div>
+      <div class="fc-val">${fc}</div>
+      <div><input type="number" min="0" class="cap-input" data-mes="oct" data-idx="${i}" value="${v.oct}"></div>
+      <div><input type="number" min="0" class="cap-input ${v.novEsSugerido?'empty':''}" data-mes="nov" data-idx="${i}" value="${v.nov}" title="${v.novEsSugerido?'Sugerencia automática, se recalcula al cambiar octubre':'Capturado a mano'}"></div>
+      <div><input type="number" min="0" class="cap-input ${v.dicEsSugerido?'empty':''}" data-mes="dic" data-idx="${i}" value="${v.dic}" title="${v.dicEsSugerido?'Sugerencia automática, se recalcula al cambiar octubre/noviembre':'Capturado a mano'}"></div>
+    </div>`;
+  }).join('') || '<div style="padding:20px; color:#94A3B8;">Sin resultados.</div>';
+
+  wrapEl.querySelectorAll('.cap-input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const idx = e.target.dataset.idx, mes = e.target.dataset.mes;
+      captura[idx] = captura[idx] || {};
+      const val = e.target.value === '' ? undefined : Number(e.target.value);
+      if (mes === 'oct') {
+        captura[idx].oct = val;
+      } else if (mes === 'nov') {
+        captura[idx].nov = val;
+        captura[idx].novTocado = true; // deja de auto-actualizarse con octubre
+      } else if (mes === 'dic') {
+        captura[idx].dic = val;
+        captura[idx].dicTocado = true;
+      }
+      // si tocan octubre, noviembre (si sigue en automático) se recalcula solo al re-renderizar
+      renderFila(idx);
+      actualizarTotales();
+    });
+  });
+  actualizarTotales();
+}
+
+function renderFila(idx){
+  const i = Number(idx);
+  const p = products[i];
+  const v = valoresDe(i, p);
+  const row = wrapEl.querySelector(`.row[data-idx="${i}"]`);
+  if (!row) return;
+  const novInput = row.querySelector('[data-mes="nov"]');
+  const dicInput = row.querySelector('[data-mes="dic"]');
+  // solo repinta nov/dic si NO son los que el usuario acaba de tocar (para no pelear con lo que está escribiendo)
+  if (!captura[idx]?.novTocado) { novInput.value = v.nov; novInput.classList.add('empty'); } else { novInput.classList.remove('empty'); }
+  if (!captura[idx]?.dicTocado) { dicInput.value = v.dic; dicInput.classList.add('empty'); } else { dicInput.classList.remove('empty'); }
+}
+
+function actualizarTotales(){
+  let tOct=0, tNov=0, tDic=0;
+  products.forEach((p,i) => {
+    const v = valoresDe(i, p);
+    tOct += v.oct; tNov += v.nov; tDic += v.dic;
+  });
+  document.getElementById('tot-oct').textContent = tOct.toLocaleString();
+  document.getElementById('tot-nov').textContent = tNov.toLocaleString();
+  document.getElementById('tot-dic').textContent = tDic.toLocaleString();
+}
+
+buscador.addEventListener('input', e => render(e.target.value));
+render('');
+</script>
+</body>
+</html>
