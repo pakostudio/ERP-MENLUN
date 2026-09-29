@@ -1,0 +1,185 @@
+<script>
+/* SMLOGBITACORAV1: Bitacora de envios (Sprint 1 modulo Logistica para Fernando). Tercera opcion dentro del modal nativo de Logistica ("Logística" -> boton "Bitácora de envíos"), con formulario grande/simple y lista del dia. Tabla: menlun_logistica_bitacora_envios. */
+(function(){
+var ROLES_PERMITIDOS = ['logistica','direccion','admin_sistemas'];
+function gateOk(){ return typeof currentRole !== 'undefined' && currentRole && ROLES_PERMITIDOS.indexOf(currentRole) !== -1; }
+var SB_URL = 'https://diqbmyqvuyollvlvjniz.supabase.co';
+var SB_KEY = 'sb_publishable_R_XGqN5PlehELFz7u3fgeg_ekGPb38Z';
+var TABLA = 'menlun_logistica_bitacora_envios';
+function sbGet(qs){ return fetch(SB_URL+'/rest/v1/'+TABLA+'?'+qs, { headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY } }).then(function(r){ return r.json(); }); }
+function sbPost(body){ return fetch(SB_URL+'/rest/v1/'+TABLA, { method:'POST', headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':'application/json', Prefer:'return=representation' }, body: JSON.stringify(body) }); }
+function sbPatch(id, body){ return fetch(SB_URL+'/rest/v1/'+TABLA+'?id=eq.'+id, { method:'PATCH', headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, 'Content-Type':'application/json', Prefer:'return=minimal' }, body: JSON.stringify(body) }); }
+function sbDelete(id){ return fetch(SB_URL+'/rest/v1/'+TABLA+'?id=eq.'+id, { method:'DELETE', headers:{ apikey:SB_KEY, Authorization:'Bearer '+SB_KEY, Prefer:'return=minimal' } }); }
+function toast(msg, esError){
+var t = document.getElementById('toast');
+if (t) { t.textContent = (esError?'⚠ ':'✓ ') + msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); }, 2600); }
+else if (esError) { alert(msg); }
+}
+function hoyISO(){ return new Date().toISOString().slice(0,10); }
+function campoHtml(label, name, tipo, opciones, requerido, placeholder){
+var reqAttr = requerido ? ' required' : '';
+var lbl = '<label style="display:block;font-size:13px;color:#374151;margin-bottom:5px;font-weight:600;">' + label + (requerido?' *':'') + '</label>';
+if (tipo === 'select') {
+var opts = opciones.map(function(o){ return '<option value="'+o.v+'">'+o.l+'</option>'; }).join('');
+return lbl + '<select name="'+name+'"'+reqAttr+' style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:10px;padding:12px;margin-bottom:14px;font-size:16px;">' + opts + '</select>';
+}
+return lbl + '<input name="'+name+'" type="'+(tipo||'text')+'"'+reqAttr+' placeholder="'+(placeholder||'')+'" style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:10px;padding:12px;margin-bottom:14px;font-size:16px;">';
+}
+function badgeEstatus(estatus){
+var e = (estatus||'programado').toLowerCase();
+var colores = { programado:'#6b7280', en_camino:'#d97706', entregado:'#16a34a' };
+var etiquetas = { programado:'Programado', en_camino:'En camino', entregado:'Entregado' };
+var color = colores[e] || '#6b7280';
+var label = etiquetas[e] || estatus;
+return '<span style="background:'+color+';color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap;">' + label + '</span>';
+}
+function abrirFormNuevoEnvio(onGuardado){
+var overlay = document.createElement('div');
+overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;padding:16px;';
+overlay.innerHTML =
+'<div style="background:#fff;border-radius:16px;max-width:440px;width:100%;padding:22px;position:relative;box-shadow:0 12px 44px rgba(0,0,0,.3);max-height:90vh;overflow:auto;">' +
+'<button data-close style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:18px;">✕</button>' +
+'<h2 style="margin:0 0 16px;font-size:19px;color:#111827;">🚚 Registrar envío de hoy</h2>' +
+'<form data-form>' +
+campoHtml('Cliente', 'cliente', 'text', null, true, 'Nombre del cliente') +
+campoHtml('Destino', 'destino', 'text', null, false, 'Ciudad o dirección') +
+campoHtml('Cantidad', 'cantidad', 'number', null, false, 'Ej. 20') +
+campoHtml('Unidad de medida', 'unidad_medida', 'select', [ {v:'kg',l:'Kilogramos'}, {v:'ton',l:'Toneladas'}, {v:'piezas',l:'Piezas'}, {v:'bultos',l:'Bultos'}, {v:'tambos',l:'Tambos'} ], false) +
+campoHtml('Tipo de envío', 'tipo_envio', 'select', [ {v:'foraneo',l:'Foráneo'}, {v:'local',l:'Local'} ], false) +
+campoHtml('Fletera (si aplica)', 'fletera', 'text', null, false, 'Ej. Fletera Ruiz') +
+campoHtml('Chofer', 'chofer', 'text', null, false, 'Nombre del chofer') +
+campoHtml('Unidad / vehículo', 'unidad_vehiculo', 'text', null, false, 'Ej. KU7118A') +
+campoHtml('Estatus', 'estatus', 'select', [ {v:'programado',l:'Programado'}, {v:'en_camino',l:'En camino'}, {v:'entregado',l:'Entregado'} ], false) +
+campoHtml('Observaciones', 'observaciones', 'text', null, false, 'Opcional') +
+'<button type="submit" style="margin-top:4px;width:100%;background:#2563eb;color:#fff;border:none;border-radius:12px;padding:15px;font-size:17px;font-weight:700;cursor:pointer;">Guardar envío</button>' +
+'</form>' +
+'</div>';
+document.body.appendChild(overlay);
+overlay.querySelector('[data-close]').addEventListener('click', function(){ overlay.remove(); });
+overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+overlay.querySelector('[data-form]').addEventListener('submit', function(e){
+e.preventDefault();
+var f = e.target;
+var cliente = f.cliente.value.trim();
+if (!cliente) { toast('El cliente es obligatorio.', true); return; }
+var body = {
+fecha: hoyISO(),
+cliente: cliente,
+destino: f.destino.value.trim() || null,
+cantidad: f.cantidad.value ? parseFloat(f.cantidad.value) : null,
+unidad_medida: f.unidad_medida.value || null,
+tipo_envio: f.tipo_envio.value || null,
+fletera: f.fletera.value.trim() || null,
+chofer: f.chofer.value.trim() || null,
+unidad_vehiculo: f.unidad_vehiculo.value.trim() || null,
+estatus: f.estatus.value || 'programado',
+observaciones: f.observaciones.value.trim() || null
+};
+sbPost(body).then(function(r){
+if (!r.ok) { toast('No se pudo guardar el envío.', true); return; }
+overlay.remove();
+toast('Envío registrado');
+if (typeof onGuardado === 'function') onGuardado();
+});
+});
+}
+function tarjetaEnvio(reg){
+var div = document.createElement('div');
+div.style.cssText = 'border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fafafa;';
+var cant = reg.cantidad != null ? (reg.cantidad + ' ' + (reg.unidad_medida||'')) : '';
+div.innerHTML =
+'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
+'<div>' +
+'<div style="font-size:15px;font-weight:700;color:#111827;">' + (reg.cliente||'') + '</div>' +
+'<div style="font-size:13px;color:#6b7280;margin-top:2px;">' + [reg.destino, cant, reg.chofer].filter(Boolean).join(' · ') + '</div>' +
+'</div>' +
+'<div>' + badgeEstatus(reg.estatus) + '</div>' +
+'</div>' +
+'<div style="display:flex;gap:8px;margin-top:10px;" data-acciones></div>';
+var acciones = div.querySelector('[data-acciones]');
+if ((reg.estatus||'programado') !== 'entregado') {
+var btnEntregado = document.createElement('button');
+btnEntregado.textContent = '✅ Marcar entregado';
+btnEntregado.style.cssText = 'flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;';
+btnEntregado.addEventListener('click', function(){
+sbPatch(reg.id, { estatus:'entregado' }).then(function(r){
+if (!r.ok) { toast('No se pudo actualizar.', true); return; }
+toast('Marcado como entregado');
+cargarLista();
+});
+});
+acciones.appendChild(btnEntregado);
+}
+var btnDel = document.createElement('button');
+btnDel.textContent = '🗑';
+btnDel.style.cssText = 'background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;';
+btnDel.addEventListener('click', function(){
+if (!confirm('¿Eliminar este envío?')) return;
+sbDelete(reg.id).then(function(r){
+if (!r.ok) { toast('No se pudo eliminar.', true); return; }
+toast('Envío eliminado');
+cargarLista();
+});
+});
+acciones.appendChild(btnDel);
+return div;
+}
+function cargarLista(){
+var cont = document.getElementById('smBitLista');
+if (!cont) return;
+sbGet('fecha=eq.'+hoyISO()+'&order=created_at.desc').then(function(rows){
+cont = document.getElementById('smBitLista');
+if (!cont) return;
+if (!rows || !rows.length) { cont.innerHTML = '<p style="color:#9ca3af;font-size:13px;">Todavía no hay envíos registrados hoy.</p>'; return; }
+cont.innerHTML = '';
+rows.forEach(function(reg){ cont.appendChild(tarjetaEnvio(reg)); });
+}).catch(function(){
+if (cont) cont.innerHTML = '<p style="color:#dc2626;font-size:13px;">No se pudo cargar la lista.</p>';
+});
+}
+function abrirBitacora(){
+var overlay = document.getElementById('smLogOverlay');
+if (!overlay) return;
+var panel = overlay.firstElementChild;
+if (!panel) return;
+var closeBtn = panel.querySelector('#smLogClose');
+panel.style.position = 'relative';
+panel.innerHTML =
+'<h2 style="margin:0 0 4px;font-size:20px;color:#111827;">📋 Bitácora de envíos</h2>' +
+'<p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Registra aquí los envíos del día. Toca el botón grande para empezar.</p>' +
+'<button id="smBitBtnNuevo" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:12px;padding:16px;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:16px;">+ Registrar envío de hoy</button>' +
+'<div style="text-align:center;margin-bottom:16px;"><button data-volver style="background:none;border:none;color:#2563eb;font-size:14px;cursor:pointer;text-decoration:underline;">← Volver al menú de Logística</button></div>' +
+'<h3 style="margin:0 0 10px;font-size:15px;color:#111827;">Envíos de hoy</h3>' +
+'<div id="smBitLista" style="display:flex;flex-direction:column;gap:10px;max-height:340px;overflow:auto;"><p style="color:#9ca3af;font-size:13px;">Cargando…</p></div>';
+if (closeBtn) panel.insertBefore(closeBtn, panel.firstChild);
+panel.querySelector('#smBitBtnNuevo').addEventListener('click', function(){ abrirFormNuevoEnvio(cargarLista); });
+panel.querySelector('[data-volver]').addEventListener('click', function(){
+if (closeBtn) closeBtn.click();
+setTimeout(function(){ var t = document.getElementById('tbLogisticaBtn'); if (t) t.click(); }, 150);
+});
+cargarLista();
+}
+function agregarBotonBitacora(){
+if (!gateOk()) return;
+var overlay = document.getElementById('smLogOverlay');
+if (!overlay) return;
+var h2 = overlay.querySelector('h2');
+if (!h2 || h2.textContent.trim() !== 'Logística') return;
+if (document.getElementById('btnLogBitacora')) return;
+var filaBtn = document.getElementById('btnLogDocs') || document.getElementById('btnLogFletes');
+if (!filaBtn || !filaBtn.parentElement) return;
+var btn = document.createElement('button');
+btn.id = 'btnLogBitacora';
+btn.className = 'btn-mini';
+btn.innerHTML = '<i class="ti ti-clipboard-list"></i> Bitácora de envíos';
+btn.addEventListener('click', abrirBitacora);
+filaBtn.parentElement.appendChild(btn);
+}
+function tick(){
+if (!gateOk()) return;
+agregarBotonBitacora();
+}
+document.addEventListener('DOMContentLoaded', tick);
+setInterval(tick, 700);
+})();
+</script>
