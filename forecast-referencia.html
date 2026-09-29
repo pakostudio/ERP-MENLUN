@@ -49,6 +49,7 @@
   .step-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#2F6FED; color:#fff; font-size:11px; font-weight:800; margin-bottom:8px; }
   .step-title { font-size:13px; font-weight:700; color:#0F172A; margin-bottom:4px; }
   .step-text { font-size:12.5px; color:#64748B; line-height:1.5; }
+  .warn-note { font-size:11.5px; color:#B45309; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; padding:8px 12px; margin-top:10px; }
 </style>
 </head>
 <body>
@@ -66,7 +67,7 @@
         <div class="brand-sub">ERP MENLUN &middot; Forecast Inteligente &mdash; Vista de referencia</div>
       </div>
     </div>
-    <span class="badge">Octubre 2026 &middot; 89 SKU activos</span>
+    <span class="badge">Octubre 2026 &middot; 93 SKU activos</span>
   </div>
 
   <div class="content">
@@ -74,7 +75,7 @@
     <div class="intro-card">
       <div class="intro-title">¿Qué es esto?</div>
       <div class="intro-sub">
-        Una vista de referencia del nuevo modelo de forecast, calculada con el histórico real de ventas marzo&ndash;agosto 2026. La idea: que cada quien ya no arranque el presupuesto de octubre desde cero, sino con una base numérica por producto que ustedes revisan y ajustan con su criterio.
+        Una vista de referencia del nuevo modelo de forecast, calculada con el histórico real de ventas marzo&ndash;agosto 2026 (archivo "Artículos vendidos" de José Carlos). La idea: que cada quien ya no arranque el presupuesto de octubre desde cero, sino con una base numérica por producto que ustedes revisan y ajustan con su criterio.
       </div>
       <div class="steps">
         <div class="step">
@@ -93,27 +94,28 @@
           <div class="step-text">Al cambiar octubre, noviembre se recalcula solo (y diciembre con noviembre) usando el mismo modelo. Si escriben directo en nov/dic, esa celda ya no se mueve sola — queda como su número.</div>
         </div>
       </div>
+      <div class="warn-note">Nota: dentro de estos 93 hay 3 renglones que son servicios, no producto (Servicio a Equipo Goteador, Servicio a Equipo Aromatizante Ambiente, Servicio de mantenimiento) — vienen del mismo reporte de ventas de José Carlos porque se facturan igual, pero avísenme si prefieren que los quite de aquí.</div>
     </div>
 
     <div class="kpis">
       <div class="card">
         <div class="card-label">SKU con tendencia</div>
-        <div class="card-value">89</div>
-        <div class="card-note">de 271 totales (&ge;4 de 6 meses)</div>
+        <div class="card-value">93</div>
+        <div class="card-note">de 302 totales (&ge;4 de 6 meses)</div>
       </div>
       <div class="card">
         <div class="card-label">Unidades vendidas mar-ago</div>
-        <div class="card-value">9,308</div>
+        <div class="card-value">10,717</div>
         <div class="card-note">nucleo recurrente</div>
       </div>
       <div class="card">
-        <div class="card-label">Forecast octubre (89 SKU)</div>
-        <div class="card-value">1,629</div>
+        <div class="card-label">Forecast octubre (93 SKU)</div>
+        <div class="card-value">1,965</div>
         <div class="card-note accent">promedio ponderado 3-2-1</div>
       </div>
       <div class="card">
         <div class="card-label">Top 25 = % del nucleo</div>
-        <div class="card-value">81%</div>
+        <div class="card-value">78%</div>
         <div class="card-note">del volumen total</div>
       </div>
     </div>
@@ -121,7 +123,7 @@
     <div class="section-title">Buscar producto</div>
     <input type="search" id="buscador" placeholder="Escribe el nombre de un producto...">
 
-    <div class="section-title">Nucleo completo de productos (89 SKU) &middot; forecast = 3&times;ago + 2&times;jul + 1&times;jun / 6</div>
+    <div class="section-title">Nucleo completo de productos (93 SKU) &middot; forecast = 3&times;ago + 2&times;jul + 1&times;jun / 6</div>
     <div class="table-card">
       <div class="row-head">
         <div>Producto</div><div>Tendencia mar-ago</div><div>Ago (real)</div><div>Forecast sugerido oct</div><div class="cap-col">Oct (captura)</div><div class="cap-col">Nov (captura)</div><div class="cap-col">Dic (captura)</div>
@@ -135,43 +137,106 @@
     </div>
 
     <div class="foot-note">
-      Datos reales del historico mar-ago 2026 (archivo de Jose Carlos). Forecast sugerido = promedio ponderado, mayor peso al mes mas reciente, sin datos inventados ni supuestos. Las columnas Oct/Nov/Dic son de captura libre &mdash; lo que escriban aqui es solo para revisar en esta vista y no se guarda ni se manda a ningun lado; la carga oficial del presupuesto sigue siendo en el Forecast del ERP, por asesor y producto, como ya lo hacen. Busca cualquier producto con el buscador de arriba.
+      Datos reales del historico mar-ago 2026 (archivo "Articulos vendidos mar-ago 2026" de Jose Carlos). Forecast sugerido = promedio ponderado, mayor peso al mes mas reciente, sin datos inventados ni supuestos. Las columnas Oct/Nov/Dic son de captura libre &mdash; lo que escriban aqui es solo para revisar en esta vista y no se guarda ni se manda a ningun lado; la carga oficial del presupuesto sigue siendo en el Forecast del ERP, por asesor y producto, como ya lo hacen. Busca cualquier producto con el buscador de arriba.
     </div>
   </div>
 </div>
 
 <script>
 const products = [
-["Cl Alka, garrafón 25 Kg",107,101,109,148,173,111,138],
-["Oxi Star, garrafón 20 Kg",73,100,156,93,163,132,136],
-["H3 Super Foam, garrafon de 25kg",62,157,120,136,72,170,132],
-["Na Super Foam Alka, garrafón 25 Kg",109,96,101,103,97,90,94],
-["PM 800, garrafón de 25 Kg",102,48,86,86,85,90,88],
-["Cl Super Alka, garrafón 25 Kg",107,72,54,63,64,114,89],
-["Na Super Alka, garrafón 20 Kg",50,19,62,108,56,49,61],
-["PM Express, garrafón 20 kg",40,43,57,78,48,58,58],
-["PM 101 garrafon de 25 kg",54,63,51,72,36,45,46],
-["Cl Alka Plus, garrafón 25 Kg",38,58,31,58,57,29,43],
-["Clean Enzyme, garrafón 25 Kg",5,24,46,70,33,93,69],
-["PM Neutro, garrafón 25 kg",48,17,50,48,57,42,48],
-["Clor Star, garrafón 25 Kg",14,30,42,44,43,69,56],
-["PM Hand, garrafón de 20 kg",63,30,37,39,17,22,23],
-["PM Hand, caja c/4 galones",25,45,27,31,39,22,29],
-["Sany-Wype, caja c/6 piezas",15,65,26,23,29,26,26],
-["Quaternario, garrafón 20 kg",18,7,43,50,36,21,31],
-["Isoquat, garrafón 18 Kg",19,24,33,22,26,29,27],
-["PM 101, garrafón 60 Kg",25,26,15,28,17,27,24],
-["PM 400, garrafón 25 KG",14,5,23,13,43,20,26],
-["PM 101, tambor 250 Kg",23,23,18,11,20,19,18],
-["Na Super Foam Alka, garrafón 60 Kg",26,17,13,27,13,13,15],
-["Translub S, garrafon de 50kg",15,30,15,15,16,15,15],
-["Clor Star, garrafón 20 LT",30,6,10,7,30,10,16],
-["PM Gel, caja c/4 galones",7,27,12,13,11,10,11],
-["Antiespumante, garrafón 20 kg",6,2,16,28,11,4,15],
-["PM Foam, garrafón 25 kg",13,11,9,13,12,9,11],
-["Desengrasante Industrial, garrafón 25 kg",4,13,4,13,9,20,15],
-["Amonio Cuaternario, garrafón 20 kg",9,7,14,16,4,12,10],
-["Cl Neutro, garrafón 25 kg",5,11,16,9,12,8,10],
+["Oxido de lauril dimetil amina",0,0,50,49,25,200],
+["H3 Super Foam, garrafon de 25kg",62,157,120,136,72,170],
+["Oxi Star, garrafón 20 Kg",73,100,156,93,163,132],
+["Cl Super Alka, garrafón 25 Kg",107,72,54,63,64,114],
+["Cl Alka, garrafón 25 Kg",107,101,109,148,173,111],
+["Maquidisp 45N",0,0,20,60,100,106],
+["Clean Enzyme, garrafón 25 Kg.",5,24,46,70,33,93],
+["Na Super Foam Alka, garrafón 25 Kg",109,96,101,103,97,90],
+["PM 800, garrafón de 25 Kg",102,48,86,86,85,90],
+["Servicio a Equipo Goteador",103,159,105,12,222,73],
+["Clor Star, garrafón 25 Kg",14,30,42,44,43,69],
+["PM Express,  garrafón 20 kg",40,43,57,78,48,58],
+["Na Super Alka, garrafón 20 Kg",50,19,62,108,56,49],
+["PM 101 garrafon de 25 kg",54,63,51,72,36,45],
+["PM Neutro, garrafón 25 kg",48,17,50,48,57,42],
+["Cl Alka Plus, garrafón 25 Kg",38,58,31,58,57,29],
+["Isoquat, garrafón 18 Kg",19,24,33,22,26,29],
+["PM 101 , garrafón 60 Kg",25,26,15,28,17,27],
+["Sany-Wype, caja c/6 piezas",15,65,26,23,29,26],
+["PM Hand, caja c/4 galones",25,45,27,31,39,22],
+["PM Hand, garrafón de 20 kg",63,30,37,39,17,22],
+["Quaternario, garrafón 20 kg",18,7,43,50,36,21],
+["PM 400, garrafón 25 KG",14,5,23,13,43,20],
+["Ultrasolve, garrafon 25kg",4,13,4,13,9,20],
+["Detergente p/ropa Masco, garrafón 20 Kg",1,21,3,29,6,19],
+["PM 101, tambor 250 Kg.",23,23,18,11,20,19],
+["Lava Oxi II, garrafón de 20 kg",3,12,28,13,3,16],
+["Suavizante de telas, garrafón 3.5 Kg",0,8,8,12,8,16],
+["Ultrasolve, garrafón 3.5 Kg",0,12,8,12,12,16],
+["Translub S, garrafon de 50kg",15,30,15,15,16,15],
+["Na Super Foam Alka, garrafón 60 Kg",26,17,13,27,13,13],
+["PM 300, garrafón 50 Kg",7,16,5,7,8,13],
+["PM Express, garrafón 3.5 kg",1,0,12,0,1,13],
+["Cl Alka, garrafón 60 Kg",9,7,14,16,4,12],
+["Isoquat 70, garrafón 18 Kg",4,9,10,11,5,11],
+["Cl Super Alka, garrafón 50 Kg",11,0,27,5,6,10],
+["Clor Star, garrafón 20 LT",30,6,10,7,30,10],
+["Clor Star, garrafón 3.5 Kg.",0,1,12,2,0,10],
+["PM Gel, caja c/4 galones",7,27,12,13,11,10],
+["Servicio a Equipo Aromatizante Ambiente",30,44,16,10,15,10],
+["Oxi Star, garrafón 25 kg",7,13,11,13,6,9],
+["PM 320, garrafón 50 Kg",13,11,9,13,12,9],
+["Clor Star, garrafón 50 Kg",5,11,16,9,12,8],
+["H3 Foam, garrafón 25 Kg.",1,0,0,5,6,8],
+["PM 301, garrafón 25 kg",0,6,7,17,7,8],
+["PM Gel, Garrafón 18 Kg",0,5,5,8,1,8],
+["Step Kleen, garrafón 15 Kg",0,12,6,6,8,8],
+["Multiusos Lavanda, garrafón 20 Kg",8,12,6,4,8,7],
+["PM Express, garrafón 25 Kg",11,10,5,10,5,6],
+["Antifoam, garrafón 50Kg",5,0,6,0,4,4],
+["Clean Shell, garrafón 50 Kg.",2,0,4,0,3,4],
+["HIGH LAUNDRY, garrafón 20 KG",4,5,4,6,1,4],
+["PM 900, garrafón de 25 Kg",6,2,16,28,11,4],
+["PM Hand, garrafón de 3.5  kg",13,3,3,2,4,4],
+["Super Green, garrafón 20 Kg",7,2,6,4,11,4],
+["Ultra 020, tambor 200 Kg",3,4,3,3,4,4],
+["Vega Green, garrafón 3.5 kg",4,12,8,0,5,4],
+["Agua Destilada, porrón 20 LT",0,6,1,1,3,3],
+["H3 Super Foam, garrafón 50 Kg",4,10,7,5,6,3],
+["Multiusos Lavanda, garrafón 20 LT",4,1,2,3,1,3],
+["Na Super Alka Caja c/4 galones",3,2,1,1,1,3],
+["Oxi Star, garrafon 50 kg",5,0,13,4,7,3],
+["PM 300, tambor 200 Kg",7,3,7,6,5,3],
+["PM Hand Exporeforma, garrafón 20 kg",2,5,2,2,0,3],
+["Sany Drain, caja con 12 Pzas",5,0,2,1,4,3],
+["Cl Alka, garrafón 20 LT",1,0,0,1,1,2],
+["H3 Super Foam Caja c/4 galones",0,2,2,1,1,2],
+["Multiusos Lemon Grass, caja c/4 galones",0,2,1,0,2,2],
+["Multiusos Manzana Verde, garrafón de 20 Kg",1,0,1,1,2,2],
+["Multiusos Mar Fresco, caja c/4 galones",0,1,1,1,1,2],
+["Oxi Star, tambor 200 Kg",20,6,14,0,6,2],
+["PM 300 garrafon de 25 kg",0,5,13,9,2,2],
+["SOFT TEXTIL, garrafón 20 LT",17,0,5,9,36,2],
+["Step Kleen II, garrafón 20 LT",2,0,0,1,2,2],
+["Ultra Oxi, garrafón 20 Kg",5,0,1,2,0,2],
+["CL Alka, tambor de 225kg",0,1,0,1,1,1],
+["CLEAN DISH, caja c/4 galones",0,1,1,0,1,1],
+["Clor Star II, caja c/4 galones",1,1,1,0,1,1],
+["DRY-DISH, caja c/4 galones",1,0,1,0,1,1],
+["Multiusos Lavanda, caja con 4 garrafónes",5,1,2,1,3,1],
+["PM Express,  garrafón 20 LT",2,0,1,1,1,1],
+["PM Express, tambor 200kg",1,1,0,1,0,1],
+["PM Gel, garrafon 3.5 Kg.",43,1,2,21,0,1],
+["PM Neutro Caja c/4 galones",0,3,1,1,1,1],
+["Quimicos para lubricacion de cadenas PASA, pieza",1,1,1,1,1,1],
+["Sany Quat, cubeta 15 Kg",1,1,5,8,1,1],
+["Super Remover, garrafón 18 Kg",0,0,1,1,1,1],
+["Detergente p/ropa Masco, garrafón 20 LT",18,2,4,0,9,0],
+["Digestor Pm, bidón 20 kg",3,3,7,0,6,0],
+["Glass, caja c/4 galones",1,1,1,2,0,0],
+["IRON CONTROL, garrafón 20 LT",2,10,3,2,5,0],
+["Servicio de mantenimiento",1,1,1,1,0,0],
+["Super Green, tambor de 200 Kg",0,2,3,1,2,0],
 ];
 
 const wrapEl = document.getElementById('rows');
@@ -207,8 +272,10 @@ function render(filter){
   const f = (filter||'').toLowerCase();
   wrapEl.innerHTML = products.map((p, i) => {
     if (!p[0].toLowerCase().includes(f)) return '';
-    const [name,mar,abr,may,jun,jul,ago,fc] = p;
-    const v = valoresDe(i, p);
+    const [name,mar,abr,may,jun,jul,ago] = p;
+    const fc = Math.round((ago*3 + jul*2 + jun*1)/6);
+    const pFull = [name,mar,abr,may,jun,jul,ago,fc];
+    const v = valoresDe(i, pFull);
     return `
     <div class="row" data-idx="${i}">
       <div class="prod-name">${name}</div>
@@ -246,7 +313,10 @@ function render(filter){
 function renderFila(idx){
   const i = Number(idx);
   const p = products[i];
-  const v = valoresDe(i, p);
+  const [name,mar,abr,may,jun,jul,ago] = p;
+  const fc = Math.round((ago*3 + jul*2 + jun*1)/6);
+  const pFull = [name,mar,abr,may,jun,jul,ago,fc];
+  const v = valoresDe(i, pFull);
   const row = wrapEl.querySelector(`.row[data-idx="${i}"]`);
   if (!row) return;
   const novInput = row.querySelector('[data-mes="nov"]');
@@ -259,7 +329,10 @@ function renderFila(idx){
 function actualizarTotales(){
   let tOct=0, tNov=0, tDic=0;
   products.forEach((p,i) => {
-    const v = valoresDe(i, p);
+    const [name,mar,abr,may,jun,jul,ago] = p;
+    const fc = Math.round((ago*3 + jul*2 + jun*1)/6);
+    const pFull = [name,mar,abr,may,jun,jul,ago,fc];
+    const v = valoresDe(i, pFull);
     tOct += v.oct; tNov += v.nov; tDic += v.dic;
   });
   document.getElementById('tot-oct').textContent = tOct.toLocaleString();
