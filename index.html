@@ -11065,6 +11065,228 @@ document.addEventListener('DOMContentLoaded', tick);
 setInterval(tick, 700);
 })();
 </script>
+<script>
+/* SMACADEMIAV1 - Academia Menlun: catalogo de cursos, asignacion y semaforo de avance (RH / Mirna) */
+(function(){
+  if (window.__SMACADEMIAV1) return;
+  window.__SMACADEMIAV1 = true;
+
+  var aca = { cursos: [], asign: [], usuarios: [], sub: 'cursos', cargado: false };
+
+  function esc(v){ return (v===null||v===undefined) ? '' : String(v); }
+  function fmtDate(v){ if(!v) return '—'; var d=new Date(v+(v.length<=10?'T00:00:00':'')); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+  function puedeAsignar(){ return (typeof esRH==='function' && esRH()) || (typeof currentRol!=='undefined' && currentRol==='admin_sistemas'); }
+
+  var ESTADO_COLOR = { pendiente:['#f3f4f6','#6b7280'], en_curso:['#fef3c7','#92400e'], completado:['#dcfce7','#15803d'], vencido:['#fee2e2','#b91c1c'] };
+  var ESTADO_LABEL = { pendiente:'Pendiente', en_curso:'En curso', completado:'Completado', vencido:'Vencido' };
+
+  function ensureDom(){
+    if (document.getElementById('rhPanelAcademia')) return;
+    var tabsBar = document.querySelector('.rh-tab')?.parentElement;
+    if (tabsBar) {
+      var span = document.createElement('span');
+      span.className = 'rh-tab';
+      span.id = 'rhTabAcademia';
+      span.setAttribute('onclick', "rhIrATab('academia')");
+      span.innerHTML = '<i class="ti ti-award"></i> Academia Menlun';
+      tabsBar.appendChild(span);
+    }
+    var refPanel = document.getElementById('rhPanelCapacitacion') || document.getElementById('rhPanelEvaluaciones');
+    var panel = document.createElement('div');
+    panel.id = 'rhPanelAcademia';
+    panel.style.display = 'none';
+    panel.innerHTML =
+      '<div style="margin:14px 0 6px;font-weight:700;font-size:16px;color:#111827;"><i class="ti ti-award"></i> Academia Menlun</div>' +
+      '<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Cursos interactivos de la empresa — asignación, avance y evaluación.</div>' +
+      '<div style="margin-bottom:14px;">' +
+        '<span id="acaSubCursos" class="aca-subtab" style="background:#0f766e;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;margin-right:8px;display:inline-block;" onclick="acaSetSub(\'cursos\')">Catálogo de cursos</span>' +
+        '<span id="acaSubSemaforo" class="aca-subtab" style="background:#e5e7eb;color:#374151;border-radius:8px;padding:6px 14px;cursor:pointer;display:inline-block;" onclick="acaSetSub(\'semaforo\')">Seguimiento (semáforo)</span>' +
+      '</div>' +
+      '<div id="acaTablaWrap" style="overflow-x:auto;"></div>' +
+      '<div id="acaModalRoot"></div>';
+    if (refPanel && refPanel.parentElement) refPanel.parentElement.insertBefore(panel, refPanel.nextSibling);
+    else document.body.appendChild(panel);
+  }
+
+  window.acaCargar = async function(){
+    ensureDom();
+    if (typeof sb === 'undefined') return;
+    var rc = await sb.from('menlun_capacitacion_cursos').select('*').order('tema').order('etapa');
+    var ra = await sb.from('menlun_capacitacion_asignaciones').select('*').order('fecha_asignacion', {ascending:false});
+    var ru = await sb.from('menlun_usuarios_erp').select('id,nombre,rol').order('nombre');
+    aca.cursos = (rc && rc.data) || [];
+    aca.asign = (ra && ra.data) || [];
+    aca.usuarios = (ru && ru.data) || [];
+    aca.cargado = true;
+    acaRender();
+  };
+
+  window.acaSetSub = function(sub){
+    aca.sub = sub;
+    var bc = document.getElementById('acaSubCursos'), bs = document.getElementById('acaSubSemaforo');
+    if (bc) { bc.style.background = sub === 'cursos' ? '#0f766e' : '#e5e7eb'; bc.style.color = sub === 'cursos' ? '#fff' : '#374151'; }
+    if (bs) { bs.style.background = sub === 'semaforo' ? '#0f766e' : '#e5e7eb'; bs.style.color = sub === 'semaforo' ? '#fff' : '#374151'; }
+    acaRender();
+  };
+
+  function acaRender(){
+    var wrap = document.getElementById('acaTablaWrap');
+    if (!wrap) return;
+    wrap.innerHTML = aca.sub === 'cursos' ? renderCursosTabla() : renderSemaforoTabla();
+  }
+
+  function renderCursosTabla(){
+    var grupos = {};
+    aca.cursos.forEach(function(c){ (grupos[c.tema] = grupos[c.tema] || []).push(c); });
+    var html = '';
+    Object.keys(grupos).forEach(function(tema){
+      html += '<div style="margin:16px 0 8px;font-weight:700;font-size:14px;color:#0f766e;">' + esc(tema) + '</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px;">' +
+        '<thead><tr style="text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb;">' +
+        '<th style="padding:8px;">Etapa</th><th style="padding:8px;">Título</th><th style="padding:8px;">Nivel</th>' +
+        (puedeAsignar() ? '<th style="padding:8px;">Acciones</th>' : '') + '</tr></thead><tbody>';
+      grupos[tema].forEach(function(c){
+        html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+          '<td style="padding:8px;">' + esc(c.etapa) + '</td>' +
+          '<td style="padding:8px;font-weight:600;">' + esc(c.titulo) + '</td>' +
+          '<td style="padding:8px;text-transform:capitalize;">' + esc(c.nivel) + '</td>' +
+          (puedeAsignar() ? '<td style="padding:8px;"><button onclick="acaAbrirAsignar(\'' + c.id + '\')" style="background:#0f766e;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;">Asignar</button></td>' : '') +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+    });
+    if (!aca.cursos.length) html = '<div style="padding:20px;color:#9ca3af;text-align:center;">Catálogo vacío.</div>';
+    return html;
+  }
+
+  function renderSemaforoTabla(){
+    var cursoById = {}; aca.cursos.forEach(function(c){ cursoById[c.id] = c; });
+    var userById = {}; aca.usuarios.forEach(function(u){ userById[u.id] = u; });
+    var hoy = new Date().toISOString().slice(0,10);
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb;">' +
+      '<th style="padding:8px;">Empleado</th><th style="padding:8px;">Curso</th><th style="padding:8px;">Asignado</th>' +
+      '<th style="padding:8px;">Fecha límite</th><th style="padding:8px;">Estado</th>' +
+      (puedeAsignar() ? '<th style="padding:8px;">Actualizar</th>' : '') + '</tr></thead><tbody>';
+    aca.asign.forEach(function(a){
+      var c = cursoById[a.curso_id] || {}; var u = userById[a.usuario_id] || {};
+      var estadoVisual = a.estado;
+      if (estadoVisual !== 'completado' && a.fecha_limite && a.fecha_limite < hoy) estadoVisual = 'vencido';
+      var col = ESTADO_COLOR[estadoVisual] || ESTADO_COLOR.pendiente;
+      html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+        '<td style="padding:8px;font-weight:600;">' + esc(u.nombre || '—') + '</td>' +
+        '<td style="padding:8px;">' + esc(c.titulo || '—') + '</td>' +
+        '<td style="padding:8px;">' + fmtDate(a.fecha_asignacion) + '</td>' +
+        '<td style="padding:8px;">' + (a.fecha_limite ? fmtDate(a.fecha_limite) : '—') + '</td>' +
+        '<td style="padding:8px;"><span style="background:' + col[0] + ';color:' + col[1] + ';padding:3px 10px;border-radius:999px;font-weight:600;font-size:12px;">' + (ESTADO_LABEL[estadoVisual] || estadoVisual) + '</span></td>' +
+        (puedeAsignar() ?
+          '<td style="padding:8px;"><select onchange="acaActualizarEstado(\'' + a.id + '\', this.value)" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;">' +
+            ['pendiente','en_curso','completado'].map(function(op){ return '<option value="' + op + '"' + (a.estado===op?' selected':'') + '>' + ESTADO_LABEL[op] + '</option>'; }).join('') +
+          '</select></td>' : '') +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    if (!aca.asign.length) html += '<div style="padding:20px;color:#9ca3af;text-align:center;">Aún no hay cursos asignados.</div>';
+    return html;
+  }
+
+  window.acaActualizarEstado = async function(asignacionId, estado){
+    if (typeof sb === 'undefined') return;
+    var res = await sb.from('menlun_capacitacion_asignaciones').update({ estado: estado }).eq('id', asignacionId);
+    if (res && res.error) { alert('Error al actualizar: ' + res.error.message); return; }
+    await acaCargar();
+    acaSetSub('semaforo');
+  };
+
+  window.acaAbrirAsignar = function(cursoId){
+    var c = aca.cursos.find(function(x){ return x.id === cursoId; });
+    if (!c) return;
+    var checks = aca.usuarios.map(function(u){
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;">' +
+        '<input type="checkbox" class="acaChk" value="' + u.id + '"> ' + esc(u.nombre) + '</label>';
+    }).join('');
+    var body =
+      '<div style="font-size:13px;color:#6b7280;margin-bottom:10px;">Curso: <strong>' + esc(c.titulo) + '</strong></div>' +
+      '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">Fecha límite (opcional)</label>' +
+      '<input id="acaFechaLimite" type="date" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;"></div>' +
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">Asignar a:</div>' +
+      '<div style="max-height:220px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;">' + checks + '</div>';
+    var root = document.getElementById('acaModalRoot');
+    root.innerHTML =
+      '<div id="acaOverlay" style="position:fixed;inset:0;background:rgba(17,24,39,.5);display:flex;align-items:center;justify-content:center;z-index:9999;">' +
+        '<div style="background:#fff;border-radius:12px;padding:20px 22px;width:460px;max-width:92vw;max-height:88vh;overflow-y:auto;">' +
+          '<div style="font-weight:700;font-size:15px;margin-bottom:14px;">Asignar curso</div>' +
+          '<div>' + body + '</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">' +
+            '<button onclick="acaCerrarModal()" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 16px;cursor:pointer;">Cancelar</button>' +
+            '<button id="acaBtnGuardar" style="background:#0f766e;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;">Asignar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('acaBtnGuardar').onclick = function(){ acaGuardarAsignacion(cursoId); };
+  };
+
+  window.acaCerrarModal = function(){
+    var root = document.getElementById('acaModalRoot');
+    if (root) root.innerHTML = '';
+  };
+
+  window.acaGuardarAsignacion = async function(cursoId){
+    if (typeof sb === 'undefined') return;
+    var chks = document.querySelectorAll('.acaChk:checked');
+    if (!chks.length) { alert('Selecciona al menos un empleado.'); return; }
+    var fechaLimite = document.getElementById('acaFechaLimite').value || null;
+    var okCount = 0, dupCount = 0, errCount = 0;
+    for (var i = 0; i < chks.length; i++) {
+      var payload = { curso_id: cursoId, usuario_id: chks[i].value, asignado_por: (typeof currentUsuarioId !== 'undefined' ? currentUsuarioId : null), fecha_limite: fechaLimite };
+      var res = await sb.from('menlun_capacitacion_asignaciones').insert(payload);
+      if (res && res.error) { if (String(res.error.code) === '23505') dupCount++; else errCount++; }
+      else okCount++;
+    }
+    acaCerrarModal();
+    await acaCargar();
+    acaSetSub('semaforo');
+    var msg = okCount + ' asignación(es) creada(s).';
+    if (dupCount) msg += ' ' + dupCount + ' ya estaban asignadas.';
+    if (errCount) msg += ' ' + errCount + ' con error.';
+    alert(msg);
+  };
+
+  function showAcademiaPanel(){
+    ensureDom();
+    var allPanels = document.querySelectorAll('[id^="rhPanel"]');
+    allPanels.forEach(function(p){ p.style.display = 'none'; });
+    var mine = document.getElementById('rhPanelAcademia');
+    if (mine) mine.style.display = 'block';
+    var tabsBar = document.getElementById('rhTabAcademia') ? document.getElementById('rhTabAcademia').parentElement : null;
+    if (tabsBar) {
+      [].forEach.call(tabsBar.children, function(t){
+        if (t.id === 'rhTabAcademia') t.classList.add('active'); else t.classList.remove('active');
+      });
+    }
+    if (!aca.cargado) acaCargar(); else acaRender();
+  }
+
+  function hookIrATab(){
+    var _orig = window.rhIrATab;
+    if (typeof _orig !== 'function') { setTimeout(hookIrATab, 500); return; }
+    if (_orig.__acaWrapped) return;
+    var wrapped = function(tab){
+      if (tab === 'academia') { showAcademiaPanel(); return; }
+      _orig(tab);
+    };
+    wrapped.__acaWrapped = true;
+    window.rhIrATab = wrapped;
+  }
+
+  function init(){
+    if (typeof window.rhIrATab === 'function') { ensureDom(); hookIrATab(); }
+    else setTimeout(init, 500);
+  }
+  init();
+})();
+</script>
+
 </body>
 
 
