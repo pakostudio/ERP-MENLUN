@@ -11150,7 +11150,7 @@ setInterval(tick, 700);
           '<td style="padding:8px;">' + esc(c.etapa) + '</td>' +
           '<td style="padding:8px;font-weight:600;">' + esc(c.titulo) + '</td>' +
           '<td style="padding:8px;text-transform:capitalize;">' + esc(c.nivel) + '</td>' +
-          (puedeAsignar() ? '<td style="padding:8px;"><button onclick="acaAbrirAsignar(\'' + c.id + '\')" style="background:#0f766e;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;">Asignar</button></td>' : '') +
+          (puedeAsignar() ? '<td style="padding:8px;">' + (c.url_curso ? '<button onclick="window.open(\'' + c.url_curso + '\',\'_blank\')" style="background:#fff;color:#0f766e;border:1px solid #0f766e;border-radius:6px;padding:4px 12px;cursor:pointer;margin-right:6px;">Vista previa</button>' : '') + '<button onclick="acaAbrirAsignar(\'' + c.id + '\')" style="background:#0f766e;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;">Asignar</button></td>' : '') +
           '</tr>';
       });
       html += '</tbody></table>';
