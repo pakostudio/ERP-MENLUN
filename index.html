@@ -11075,7 +11075,7 @@ setInterval(tick, 700);
 
   function esc(v){ return (v===null||v===undefined) ? '' : String(v); }
   function fmtDate(v){ if(!v) return '—'; var d=new Date(v+(v.length<=10?'T00:00:00':'')); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
-  function puedeAsignar(){ return (typeof esRH==='function' && esRH()) || (typeof currentRol!=='undefined' && currentRol==='admin_sistemas'); }
+  function puedeAsignar(){ return (typeof currentRole!=='undefined' && currentRole==='rh') || (typeof currentRol!=='undefined' && currentRol==='admin_sistemas'); }
 
   var ESTADO_COLOR = { pendiente:['#f3f4f6','#6b7280'], en_curso:['#fef3c7','#92400e'], completado:['#dcfce7','#15803d'], vencido:['#fee2e2','#b91c1c'] };
   var ESTADO_LABEL = { pendiente:'Pendiente', en_curso:'En curso', completado:'Completado', vencido:'Vencido' };
