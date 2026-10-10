@@ -11249,17 +11249,44 @@ setInterval(tick, 700);
     var chks = document.querySelectorAll('.acaChk:checked');
     if (!chks.length) { alert('Selecciona al menos un empleado.'); return; }
     var fechaLimite = document.getElementById('acaFechaLimite').value || null;
-    var okCount = 0, dupCount = 0, errCount = 0;
+    var okCount = 0, dupCount = 0, errCount = 0, sinCorreo = [];
+    var _nc = await sb.from('menlun_capacitacion_cursos').select('titulo,etapa,tema').eq('id', cursoId).maybeSingle();
+    var _curTitulo = (_nc && _nc.data && _nc.data.titulo) || 'un curso';
     for (var i = 0; i < chks.length; i++) {
       var payload = { curso_id: cursoId, usuario_id: chks[i].value, asignado_por: (typeof currentUsuarioId !== 'undefined' ? currentUsuarioId : null), fecha_limite: fechaLimite };
       var res = await sb.from('menlun_capacitacion_asignaciones').insert(payload);
-      if (res && res.error) { if (String(res.error.code) === '23505') dupCount++; else errCount++; }
-      else { okCount++; try { var _nu = await sb.from('menlun_rh_empleados').select('correo,nombre').eq('id', chks[i].value).maybeSingle(); var _nc = await sb.from('menlun_capacitacion_cursos').select('titulo,url_curso').eq('id', cursoId).maybeSingle(); if (_nu && _nu.data && _nu.data.correo) { var _curTitulo = (_nc && _nc.data && _nc.data.titulo) || 'un curso'; var _curUrl = (_nc && _nc.data && _nc.data.url_curso) ? ('https://erp-menlun.vercel.app' + _nc.data.url_curso) : 'https://erp-menlun.vercel.app'; fetch('https://diqbmyqvuyollvlvjniz.supabase.co/functions/v1/send-email', { method:'POST', headers:{'Content-Type':'application/json','apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcWJteXF2dXlvbGx2bHZqbml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODA5MjEsImV4cCI6MjA5OTY1NjkyMX0.VAL6-eUHRZyZhmf3clD8ht3sa9pCoyBMIzZSCg16cBs','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcWJteXF2dXlvbGx2bHZqbml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODA5MjEsImV4cCI6MjA5OTY1NjkyMX0.VAL6-eUHRZyZhmf3clD8ht3sa9pCoyBMIzZSCg16cBs'}, body: JSON.stringify({ to:_nu.data.correo, subject:'Se te asigno un curso en Academia Menlun', html:'<p>Hola '+(_nu.data.nombre||'')+',</p><p>Se te asigno el curso <strong>'+_curTitulo+'</strong> en Academia Menlun.</p><p>Entra al ERP y abre Mis cursos en la barra superior para comenzar, o da clic aqui: <a href="'+_curUrl+'">'+_curUrl+'</a></p><p>- Academia Menlun</p>' }) }).catch(function(){}); } } catch(e) {} } } acaCerrarModal();
+      if (res && res.error) { if (String(res.error.code) === '23505') dupCount++; else errCount++; continue; }
+      okCount++;
+      try {
+        var _nu = await sb.from('menlun_rh_empleados').select('correo,nombre,token_acceso').eq('id', chks[i].value).maybeSingle();
+        if (!_nu || !_nu.data) continue;
+        if (!_nu.data.correo) { sinCorreo.push(_nu.data.nombre || 'Empleado sin nombre'); continue; }
+        var _liga = 'https://erp-menlun.vercel.app/academia.html?t=' + _nu.data.token_acceso;
+        var _html = '<p>Hola ' + (_nu.data.nombre||'') + ',</p>' +
+          '<p>Se te asignó el curso <strong>' + _curTitulo + '</strong> en Academia Menlun.</p>' +
+          '<p><strong>Cómo tomarlo:</strong></p>' +
+          '<ol>' +
+          '<li>Entra a tu liga personal (no necesitas usuario ni contraseña): <a href="' + _liga + '">' + _liga + '</a></li>' +
+          '<li>Da clic en "Abrir curso" y revísalo con calma.</li>' +
+          '<li>Regresa a esta misma liga y responde la evaluación (mínimo 70 de 100 para aprobar).</li>' +
+          '<li>Si no alcanzas el mínimo, puedes volver a intentarlo las veces que necesites.</li>' +
+          '</ol>' +
+          '<p>Guarda esta liga, es personal e intransferible.</p>' +
+          '<p>- Academia Menlun</p>';
+        await fetch('https://diqbmyqvuyollvlvjniz.supabase.co/functions/v1/send-email', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcWJteXF2dXlvbGx2bHZqbml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODA5MjEsImV4cCI6MjA5OTY1NjkyMX0.VAL6-eUHRZyZhmf3clD8ht3sa9pCoyBMIzZSCg16cBs','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcWJteXF2dXlvbGx2bHZqbml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODA5MjEsImV4cCI6MjA5OTY1NjkyMX0.VAL6-eUHRZyZhmf3clD8ht3sa9pCoyBMIzZSCg16cBs'},
+          body: JSON.stringify({ to:_nu.data.correo, subject:'Se te asignó un curso en Academia Menlun', html:_html })
+        }).catch(function(){});
+      } catch(e) {}
+    }
+    acaCerrarModal();
     await acaCargar();
     acaSetSub('semaforo');
-    var msg = okCount + ' asignación(es) creada(s).';
+    var msg = okCount + ' asignación(es) creada(s), notificación enviada por correo.';
     if (dupCount) msg += ' ' + dupCount + ' ya estaban asignadas.';
     if (errCount) msg += ' ' + errCount + ' con error.';
+    if (sinCorreo.length) msg += '\n\n⚠ Sin correo registrado (avísales su liga manualmente): ' + sinCorreo.join(', ');
     alert(msg);
   };
 
