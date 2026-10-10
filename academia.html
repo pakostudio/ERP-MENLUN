@@ -77,12 +77,16 @@ async function rpc(fn, args){
 
 const ETIQUETA = { pendiente: 'Pendiente', en_curso: 'En curso', completado: 'Completado', vencido: 'Vencido' };
 
-function preguntaHtml(asignacionId, p){
-  const opciones = p.opciones.map(o => `
+function preguntaHtml(asignacionId, p, guardadas){
+  const valorGuardado = guardadas ? guardadas['q' + p.numero] : null;
+  const opciones = p.opciones.map(o => {
+    const checked = (valorGuardado && valorGuardado === o.valor) ? 'checked' : '';
+    return `
     <label class="opcion">
-      <input type="radio" name="resp-${asignacionId}-q${p.numero}" value="${o.valor}">
+      <input type="radio" name="resp-${asignacionId}-q${p.numero}" value="${o.valor}" ${checked} onchange="guardarProgreso('${asignacionId}')">
       ${o.texto}
-    </label>`).join('');
+    </label>`;
+  }).join('');
   return `<div class="pregunta"><strong>${p.numero}. ${p.pregunta}</strong>${opciones}</div>`;
 }
 
@@ -105,14 +109,20 @@ function cursoCard(c){
     evalHtml = `<div class="eval"><div class="msg ok">Aprobado con ${c.evaluacion.calificacion}/100 &#10003;</div><div class="intentos">Intentos: ${c.evaluacion.intentos}</div></div>`;
   } else {
     const intentosPrevios = (c.evaluacion && c.evaluacion.intentos) || 0;
-    const preguntasHtml = (c.preguntas || []).map(p => preguntaHtml(c.asignacion_id, p)).join('');
+    const guardadas = c.progreso_respuestas || {};
+    const hayGuardado = Object.keys(guardadas).length > 0;
+    const preguntasHtml = (c.preguntas || []).map(p => preguntaHtml(c.asignacion_id, p, guardadas)).join('');
     const intentoMsg = intentosPrevios > 0
       ? `<div class="msg err">No alcanzaste el mínimo (70) en tu intento anterior (${c.evaluacion.calificacion}/100). Vuelve a intentarlo.</div>`
+      : '';
+    const guardadoMsg = hayGuardado
+      ? `<div class="msg ok">Ya tenías respuestas marcadas, las dejamos tal como las habías dejado.</div>`
       : '';
     evalHtml = `
       <div class="eval">
         <div class="meta">Evaluación del curso (mínimo 70 para aprobar):</div>
         ${intentoMsg}
+        ${guardadoMsg}
         <form id="form-${c.asignacion_id}">
           ${preguntasHtml}
           <button type="button" class="btn secondary" onclick="enviarEvaluacion('${c.asignacion_id}')">Enviar evaluación</button>
@@ -151,6 +161,18 @@ async function cargar(){
   estadoEl.remove();
   wrap.innerHTML = res.cursos.map(cursoCard).join('');
 }
+
+window.guardarProgreso = async function(asignacionId){
+  const form = document.getElementById('form-' + asignacionId);
+  if (!form) return;
+  const inputs = form.querySelectorAll('input[type=radio]:checked');
+  const respuestas = {};
+  inputs.forEach(inp => {
+    const m = inp.name.match(/-q(\d+)$/);
+    if (m) respuestas['q' + m[1]] = inp.value;
+  });
+  await rpc('academia_guardar_progreso', { p_token: TOKEN, p_asignacion_id: asignacionId, p_respuestas: respuestas });
+};
 
 window.marcarVisto = async function(asignacionId){
   await rpc('academia_marcar_modulo', { p_token: TOKEN, p_asignacion_id: asignacionId, p_modulo_num: 1, p_modulo_titulo: 'Curso visto' });
