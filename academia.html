@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Academia Menlun</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--text:#1e2a3a;--text2:#64748b;--brand:#0f4c81;--brand2:#13689e;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--border:#e2e8f0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .top{background:var(--brand);color:#fff;padding:18px 16px;display:flex;align-items:center;gap:10px}
+  .top .logo{width:30px;height:30px;border-radius:7px;background:#fff2;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .top h1{font-size:16px;margin:0}
+  .top p{margin:2px 0 0;font-size:12px;opacity:.85}
+  .wrap{max-width:560px;margin:0 auto;padding:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+  .curso-title{font-weight:700;font-size:15px;margin:0 0 2px}
+  .meta{color:var(--text2);font-size:12px;margin-bottom:10px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .b-pendiente{background:#fef3c7;color:var(--warn)}
+  .b-en_curso{background:#dbeafe;color:var(--brand2)}
+  .b-completado{background:#dcfce7;color:var(--ok)}
+  .b-vencido{background:#fee2e2;color:var(--bad)}
+  .btn{display:inline-block;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;margin-right:8px;margin-top:8px}
+  .btn.secondary{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .eval{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
+  .eval input{width:90px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+  .msg{font-size:12px;margin-top:6px}
+  .ok{color:var(--ok)} .err{color:var(--bad)}
+  .state{text-align:center;color:var(--text2);padding:40px 16px}
+  .folio{font-family:monospace;font-size:12px;background:#f1f5f9;padding:6px 8px;border-radius:6px;display:inline-block;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="logo">A</div>
+    <div>
+      <h1>Academia Menlun</h1>
+      <p id="subtitulo">Cursos de la empresa</p>
+    </div>
+  </div>
+  <div class="wrap" id="wrap">
+    <div class="state" id="estado">Cargando tus cursos…</div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://diqbmyqvuyollvlvjniz.supabase.co";
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcWJteXF2dXlvbGx2bHZqbml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODA5MjEsImV4cCI6MjA5OTY1NjkyMX0.VAL6-eUHRZyZhmf3clD8ht3sa9pCoyBMIzZSCg16cBs";
+
+function qs(name){ return new URLSearchParams(location.search).get(name); }
+const TOKEN = qs('t');
+const wrap = document.getElementById('wrap');
+const estadoEl = document.getElementById('estado');
+const subtitulo = document.getElementById('subtitulo');
+
+async function rpc(fn, args){
+  const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY,
+      'Authorization': 'Bearer ' + ANON_KEY
+    },
+    body: JSON.stringify(args)
+  });
+  return r.json();
+}
+
+const ETIQUETA = { pendiente: 'Pendiente', en_curso: 'En curso', completado: 'Completado', vencido: 'Vencido' };
+
+function cursoCard(c){
+  const badge = `<span class="badge b-${c.estado}">${ETIQUETA[c.estado] || c.estado}</span>`;
+  const yaAprobado = c.evaluacion && c.evaluacion.aprobado;
+  const linkCurso = c.url_curso ? `<a class="btn" href="${c.url_curso}" target="_blank" rel="noopener">Abrir curso</a>` : '';
+  let evalHtml = '';
+  if (yaAprobado) {
+    evalHtml = `<div class="eval"><div class="msg ok">Aprobado con ${c.evaluacion.calificacion}/100 &#10003;</div></div>`;
+  } else {
+    evalHtml = `
+      <div class="eval">
+        <div class="meta">Cuando termines el curso, registra tu calificación de la evaluación (0-100):</div>
+        <div class="row">
+          <input type="number" min="0" max="100" placeholder="Ej. 90" id="cal-${c.asignacion_id}">
+          <button class="btn secondary" onclick="enviarEvaluacion('${c.asignacion_id}')">Registrar evaluación</button>
+        </div>
+        <div class="msg" id="msg-${c.asignacion_id}"></div>
+      </div>`;
+  }
+  return `
+    <div class="card">
+      <p class="curso-title">Etapa ${c.etapa} &middot; ${c.titulo}</p>
+      <div class="meta">Nivel: ${c.nivel || '-'} ${badge}</div>
+      <div class="row">${linkCurso}
+        <button class="btn secondary" onclick="marcarVisto('${c.asignacion_id}')" ${c.estado==='completado'?'disabled':''}>Marcar como visto</button>
+      </div>
+      ${evalHtml}
+    </div>`;
+}
+
+async function cargar(){
+  if (!TOKEN) {
+    estadoEl.textContent = 'Liga inválida. Pide a RH que te reenvíe tu acceso a Academia Menlun.';
+    return;
+  }
+  const res = await rpc('academia_cargar', { p_token: TOKEN });
+  if (!res || res.ok === false) {
+    estadoEl.textContent = (res && res.error) || 'No se pudo cargar tu información.';
+    return;
+  }
+  subtitulo.textContent = 'Hola, ' + res.empleado.nombre;
+  if (!res.cursos || res.cursos.length === 0) {
+    estadoEl.textContent = 'Todavía no tienes cursos asignados. Pregunta a RH.';
+    return;
+  }
+  estadoEl.remove();
+  wrap.innerHTML = res.cursos.map(cursoCard).join('');
+}
+
+window.marcarVisto = async function(asignacionId){
+  await rpc('academia_marcar_modulo', { p_token: TOKEN, p_asignacion_id: asignacionId, p_modulo_num: 1, p_modulo_titulo: 'Curso visto' });
+  cargar();
+};
+
+window.enviarEvaluacion = async function(asignacionId){
+  const input = document.getElementById('cal-' + asignacionId);
+  const msg = document.getElementById('msg-' + asignacionId);
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0 || val > 100) { msg.textContent = 'Escribe una calificación entre 0 y 100.'; msg.className='msg err'; return; }
+  msg.textContent = 'Guardando...'; msg.className = 'msg';
+  const res = await rpc('academia_enviar_evaluacion', { p_token: TOKEN, p_asignacion_id: asignacionId, p_calificacion: val });
+  if (res && res.ok) {
+    msg.textContent = res.aprobado ? '¡Aprobado! Guardado correctamente.' : 'Registrado. No alcanzó el mínimo (80), puedes volver a intentar cuando repases el curso.';
+    msg.className = res.aprobado ? 'msg ok' : 'msg err';
+    setTimeout(cargar, 900);
+  } else {
+    msg.textContent = (res && res.error) || 'No se pudo guardar.';
+    msg.className = 'msg err';
+  }
+};
+
+cargar();
+</script>
+</body>
+</html>
