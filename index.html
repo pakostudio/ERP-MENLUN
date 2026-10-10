@@ -11114,9 +11114,11 @@ setInterval(tick, 700);
     var rc = await sb.from('menlun_capacitacion_cursos').select('*').order('tema').order('etapa');
     var ra = await sb.from('menlun_capacitacion_asignaciones').select('*').order('fecha_asignacion', {ascending:false});
     var ru = await sb.from('menlun_rh_empleados').select('id,nombre,puesto,area,status,correo').eq('status','activo').order('nombre');
+    var re = await sb.from('menlun_capacitacion_evaluaciones').select('*');
     aca.cursos = (rc && rc.data) || [];
     aca.asign = (ra && ra.data) || [];
     aca.usuarios = (ru && ru.data) || [];
+    aca.evaluaciones = (re && re.data) || [];
     aca.cargado = true;
     acaRender();
   };
@@ -11162,23 +11164,34 @@ setInterval(tick, 700);
   function renderSemaforoTabla(){
     var cursoById = {}; aca.cursos.forEach(function(c){ cursoById[c.id] = c; });
     var userById = {}; aca.usuarios.forEach(function(u){ userById[u.id] = u; });
+    var evalById = {}; (aca.evaluaciones||[]).forEach(function(e){ evalById[e.asignacion_id] = e; });
     var hoy = new Date().toISOString().slice(0,10);
     var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<thead><tr style="text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb;">' +
       '<th style="padding:8px;">Empleado</th><th style="padding:8px;">Curso</th><th style="padding:8px;">Asignado</th>' +
       '<th style="padding:8px;">Fecha límite</th><th style="padding:8px;">Estado</th>' +
+      '<th style="padding:8px;">Calificación</th><th style="padding:8px;">Intentos</th>' +
       (puedeAsignar() ? '<th style="padding:8px;">Actualizar</th>' : '') + '</tr></thead><tbody>';
     aca.asign.forEach(function(a){
       var c = cursoById[a.curso_id] || {}; var u = userById[a.usuario_id] || {};
+      var ev = evalById[a.id];
       var estadoVisual = a.estado;
       if (estadoVisual !== 'completado' && a.fecha_limite && a.fecha_limite < hoy) estadoVisual = 'vencido';
       var col = ESTADO_COLOR[estadoVisual] || ESTADO_COLOR.pendiente;
+      var califHtml = '—';
+      if (ev && ev.calificacion != null) {
+        var aprobColor = ev.aprobado ? '#16a34a' : '#dc2626';
+        califHtml = '<span style="color:' + aprobColor + ';font-weight:700;">' + ev.calificacion + '/100' + (ev.aprobado ? ' ✓' : ' ✗') + '</span>';
+      }
+      var intentosHtml = ev ? esc(ev.intentos || 0) : '0';
       html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
         '<td style="padding:8px;font-weight:600;">' + esc(u.nombre || '—') + '</td>' +
         '<td style="padding:8px;">' + esc(c.titulo || '—') + '</td>' +
         '<td style="padding:8px;">' + fmtDate(a.fecha_asignacion) + '</td>' +
         '<td style="padding:8px;">' + (a.fecha_limite ? fmtDate(a.fecha_limite) : '—') + '</td>' +
         '<td style="padding:8px;"><span style="background:' + col[0] + ';color:' + col[1] + ';padding:3px 10px;border-radius:999px;font-weight:600;font-size:12px;">' + (ESTADO_LABEL[estadoVisual] || estadoVisual) + '</span></td>' +
+        '<td style="padding:8px;">' + califHtml + '</td>' +
+        '<td style="padding:8px;">' + intentosHtml + '</td>' +
         (puedeAsignar() ?
           '<td style="padding:8px;"><select onchange="acaActualizarEstado(\'' + a.id + '\', this.value)" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;">' +
             ['pendiente','en_curso','completado'].map(function(op){ return '<option value="' + op + '"' + (a.estado===op?' selected':'') + '>' + ESTADO_LABEL[op] + '</option>'; }).join('') +
