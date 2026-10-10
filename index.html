@@ -11113,7 +11113,7 @@ setInterval(tick, 700);
     if (typeof sb === 'undefined') return;
     var rc = await sb.from('menlun_capacitacion_cursos').select('*').order('tema').order('etapa');
     var ra = await sb.from('menlun_capacitacion_asignaciones').select('*').order('fecha_asignacion', {ascending:false});
-    var ru = await sb.from('menlun_rh_empleados').select('id,nombre,puesto,area,status,correo').eq('status','activo').order('nombre');
+    var ru = await sb.from('menlun_rh_empleados').select('id,nombre,puesto,area,status,correo,token_acceso').eq('status','activo').order('nombre');
     var re = await sb.from('menlun_capacitacion_evaluaciones').select('*');
     aca.cursos = (rc && rc.data) || [];
     aca.asign = (ra && ra.data) || [];
@@ -11171,6 +11171,7 @@ setInterval(tick, 700);
       '<th style="padding:8px;">Empleado</th><th style="padding:8px;">Curso</th><th style="padding:8px;">Asignado</th>' +
       '<th style="padding:8px;">Fecha límite</th><th style="padding:8px;">Estado</th>' +
       '<th style="padding:8px;">Calificación</th><th style="padding:8px;">Intentos</th>' +
+      '<th style="padding:8px;">Liga</th>' +
       (puedeAsignar() ? '<th style="padding:8px;">Actualizar</th>' : '') + '</tr></thead><tbody>';
     aca.asign.forEach(function(a){
       var c = cursoById[a.curso_id] || {}; var u = userById[a.usuario_id] || {};
@@ -11184,14 +11185,18 @@ setInterval(tick, 700);
         califHtml = '<span style="color:' + aprobColor + ';font-weight:700;">' + ev.calificacion + '/100' + (ev.aprobado ? ' ✓' : ' ✗') + '</span>';
       }
       var intentosHtml = ev ? esc(ev.intentos || 0) : '0';
+      var ligaBtn = u.token_acceso
+        ? '<button onclick="acaCopiarLiga(\'' + u.token_acceso + '\', \'' + esc(u.nombre||'').replace(/'/g,"\\'") + '\')" title="Copiar liga para WhatsApp" style="font-size:12px;padding:5px 10px;border:1px solid #16a34a;color:#16a34a;background:#f0fdf4;border-radius:6px;cursor:pointer;white-space:nowrap;"><i class="ti ti-brand-whatsapp"></i> Copiar liga</button>'
+        : '—';
       html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
-        '<td style="padding:8px;font-weight:600;">' + esc(u.nombre || '—') + '</td>' +
+        '<td style="padding:8px;font-weight:600;">' + esc(u.nombre || '—') + (u.correo ? '' : ' <span style="color:#d97706;font-size:11px;">(sin correo)</span>') + '</td>' +
         '<td style="padding:8px;">' + esc(c.titulo || '—') + '</td>' +
         '<td style="padding:8px;">' + fmtDate(a.fecha_asignacion) + '</td>' +
         '<td style="padding:8px;">' + (a.fecha_limite ? fmtDate(a.fecha_limite) : '—') + '</td>' +
         '<td style="padding:8px;"><span style="background:' + col[0] + ';color:' + col[1] + ';padding:3px 10px;border-radius:999px;font-weight:600;font-size:12px;">' + (ESTADO_LABEL[estadoVisual] || estadoVisual) + '</span></td>' +
         '<td style="padding:8px;">' + califHtml + '</td>' +
         '<td style="padding:8px;">' + intentosHtml + '</td>' +
+        '<td style="padding:8px;">' + ligaBtn + '</td>' +
         (puedeAsignar() ?
           '<td style="padding:8px;"><select onchange="acaActualizarEstado(\'' + a.id + '\', this.value)" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;">' +
             ['pendiente','en_curso','completado'].map(function(op){ return '<option value="' + op + '"' + (a.estado===op?' selected':'') + '>' + ESTADO_LABEL[op] + '</option>'; }).join('') +
@@ -11202,6 +11207,27 @@ setInterval(tick, 700);
     if (!aca.asign.length) html += '<div style="padding:20px;color:#9ca3af;text-align:center;">Aún no hay cursos asignados.</div>';
     return html;
   }
+
+  window.acaCopiarLiga = function(token, nombre){
+    var liga = 'https://erp-menlun.vercel.app/academia.html?t=' + token;
+    var mensaje = 'Hola ' + (nombre||'') + ', aquí está tu liga personal para tus cursos de Academia Menlun (no necesitas usuario ni contraseña): ' + liga;
+    function copiar(texto){
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(texto);
+      }
+      var ta = document.createElement('textarea');
+      ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+    copiar(mensaje).then(function(){
+      alert('Mensaje copiado. Pégalo directo en WhatsApp para ' + (nombre||'el empleado') + '.');
+    }).catch(function(){
+      prompt('Copia manualmente este mensaje para WhatsApp:', mensaje);
+    });
+  };
 
   window.acaActualizarEstado = async function(asignacionId, estado){
     if (typeof sb === 'undefined') return;
